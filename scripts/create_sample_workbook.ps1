@@ -23,6 +23,7 @@ try {
     $sheet1.Range('B1').Value2 = 'Qty'
     $sheet1.Range('C1').Value2 = 'Price'
     $sheet1.Range('D1').Value2 = 'Total'
+    $sheet1.Range('E1').Value2 = 'HiddenCol'
     $sheet1.Range('A2').Value2 = 'Desk'
     $sheet1.Range('B2').Value2 = 2
     $sheet1.Range('C2').Value2 = 15000

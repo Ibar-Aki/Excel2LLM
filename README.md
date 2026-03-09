@@ -12,6 +12,14 @@ Windows と M365 Excel を前提に、Excel ブックを LLM 向けの正規化 
 - `output/`: 生成される `workbook.json`、`styles.json`、`llm_package.jsonl` などの出力先
 - `docs/`: 運用メモ、データ形式、VBA 補助の説明
 - `templates/`: 任意で Excel に取り込める VBA テンプレート
+- `tests/`: Pester を使った回帰テストとテスト補助
+
+## まず読むドキュメント
+
+- `docs/USER_GUIDE.md`: 最初のセットアップ、実行手順、出力の見方、トラブル対応
+- `docs/USE_CASES.md`: 実務での使い方、LLM への渡し方、用途別の具体例
+- `docs/FORMAT.md`: JSON と JSONL の構造
+- `docs/VBA_HELPER.md`: VBA 補助の使い方
 
 ## できること
 
@@ -34,6 +42,7 @@ run_extract.bat "C:\path\to\book.xlsx"
 run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
 run_verify.bat "C:\path\to\book.xlsx"
 run_self_test.bat
+run_tests.bat
 ```
 
 `run_extract.bat` は既定で `output/workbook.json`、空またはスキップ状態の `output/styles.json`、`output/manifest.json` を生成します。`run_pack.bat` は既定で `output/llm_package.jsonl` を生成します。
@@ -49,7 +58,6 @@ run_verify.bat "C:\Data\sample.xlsx" -WorkbookJsonPath "C:\Work_Codex\Excel2LLM\
 
 ## 出力ファイル
 
-- `workbook.json`: LLM 投入の正本となるワークブック構造、シート情報、セル情報
 - `workbook.json`: LLM 投入の正本となるワークブック構造、シート情報、セル情報。`formula` に加えて M365 向けの `formula2`、可能なら `comment_threaded` も保持
 - `styles.json`: 低優先の見た目情報。既定ではスキップし、`-CollectStyles` 指定時のみ best effort で生成
 - `manifest.json`: 抽出結果の概要、警告、検証状態

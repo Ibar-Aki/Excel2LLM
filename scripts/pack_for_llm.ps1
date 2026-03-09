@@ -85,6 +85,45 @@ function Get-ChunkPayload {
     }
 }
 
+function Add-ChunkRecord {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]]$Chunks,
+        [Parameter(Mandatory)]
+        [string]$SheetName,
+        [Parameter(Mandatory)]
+        [object[]]$ChunkCells,
+        [Parameter(Mandatory)]
+        [hashtable]$StyleLookup,
+        [switch]$IncludeStyles,
+        [Parameter(Mandatory)]
+        [ref]$ChunkIndex
+    )
+
+    if ($ChunkCells.Count -eq 0) {
+        return
+    }
+
+    $chunkRange = Get-ChunkRange -ChunkCells $ChunkCells
+    $payload = Get-ChunkPayload -SheetName $SheetName -ChunkRange $chunkRange -ChunkCells $ChunkCells -StyleLookup $StyleLookup -IncludeStyles:$IncludeStyles
+    $payloadJson = $payload | ConvertTo-Json -Depth 40 -Compress
+    $formulaCells = @($ChunkCells | Where-Object { $_.has_formula } | ForEach-Object { $_.address })
+
+    [void]$Chunks.Add([ordered]@{
+        chunk_id = ('{0}-{1:D4}' -f $SheetName, $ChunkIndex.Value)
+        sheet_name = $SheetName
+        range = $chunkRange
+        cell_addresses = @($ChunkCells | ForEach-Object { $_.address })
+        payload = $payload
+        formula_cells = $formulaCells
+        token_estimate = [Math]::Ceiling($payloadJson.Length / 4)
+        includes_styles = [bool]$IncludeStyles
+    })
+
+    $ChunkIndex.Value++
+}
+
 $resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
 $workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
 $styleLookup = @{}
@@ -112,26 +151,46 @@ foreach ($sheet in $workbookData.sheets) {
         continue
     }
 
-    for ($offset = 0; $offset -lt $sheetCells.Count; $offset += $MaxCells) {
-        $upperBound = [Math]::Min($offset + $MaxCells - 1, $sheetCells.Count - 1)
-        $chunkCells = @($sheetCells[$offset..$upperBound])
-        $chunkRange = Get-ChunkRange -ChunkCells $chunkCells
-        $payload = Get-ChunkPayload -SheetName $sheet.sheet_name -ChunkRange $chunkRange -ChunkCells $chunkCells -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles
-        $payloadJson = $payload | ConvertTo-Json -Depth 40 -Compress
-        $formulaCells = @($chunkCells | Where-Object { $_.has_formula } | ForEach-Object { $_.address })
+    if ($ChunkBy -eq 'range') {
+        for ($offset = 0; $offset -lt $sheetCells.Count; $offset += $MaxCells) {
+            $upperBound = [Math]::Min($offset + $MaxCells - 1, $sheetCells.Count - 1)
+            $chunkCells = @($sheetCells[$offset..$upperBound])
+            Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $chunkCells -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+        }
+        continue
+    }
 
-        $chunks.Add([ordered]@{
-            chunk_id = ('{0}-{1:D4}' -f $sheet.sheet_name, $chunkIndex)
-            sheet_name = $sheet.sheet_name
-            range = $chunkRange
-            cell_addresses = @($chunkCells | ForEach-Object { $_.address })
-            payload = $payload
-            formula_cells = $formulaCells
-            token_estimate = [Math]::Ceiling($payloadJson.Length / 4)
-            includes_styles = [bool]$IncludeStyles
-        })
+    $rowGroups = @($sheetCells | Group-Object row | Sort-Object { [int]$_.Name })
+    $currentChunk = New-Object System.Collections.Generic.List[object]
+    foreach ($rowGroup in $rowGroups) {
+        $rowCells = @($rowGroup.Group | Sort-Object column)
 
-        $chunkIndex++
+        if ($currentChunk.Count -gt 0 -and ($currentChunk.Count + $rowCells.Count) -gt $MaxCells) {
+            Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+            $currentChunk = New-Object System.Collections.Generic.List[object]
+        }
+
+        if ($rowCells.Count -gt $MaxCells) {
+            if ($currentChunk.Count -gt 0) {
+                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+                $currentChunk = New-Object System.Collections.Generic.List[object]
+            }
+
+            for ($offset = 0; $offset -lt $rowCells.Count; $offset += $MaxCells) {
+                $upperBound = [Math]::Min($offset + $MaxCells - 1, $rowCells.Count - 1)
+                $rowSlice = @($rowCells[$offset..$upperBound])
+                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $rowSlice -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+            }
+            continue
+        }
+
+        foreach ($cell in $rowCells) {
+            [void]$currentChunk.Add($cell)
+        }
+    }
+
+    if ($currentChunk.Count -gt 0) {
+        Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
     }
 }
 
