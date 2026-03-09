@@ -1,0 +1,16 @@
+# Generated outputs
+output/*
+!output/.gitkeep
+
+# Generated samples
+samples/*
+!samples/.gitkeep
+
+# Excel temporary files
+~$*.xlsx
+~$*.xlsm
+~$*.xls
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db

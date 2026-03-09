@@ -1,0 +1,151 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)]
+    [string]$ExcelPath,
+    [string]$WorkbookJsonPath,
+    [string]$OutputDir
+)
+
+. (Join-Path $PSScriptRoot 'common.ps1')
+
+if (-not $WorkbookJsonPath) {
+    $WorkbookJsonPath = Join-Path (Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output') 'workbook.json'
+}
+
+if (-not $OutputDir) {
+    $OutputDir = Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output'
+}
+
+$resolvedExcelPath = Resolve-AbsolutePath -Path $ExcelPath
+$resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
+Ensure-Directory -Path $OutputDir
+
+$verifyReportPath = Join-Path $OutputDir 'verify_report.json'
+$manifestPath = Join-Path $OutputDir 'manifest.json'
+
+$workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
+$warnings = [System.Collections.Generic.List[string]]::new()
+$mismatches = [System.Collections.Generic.List[object]]::new()
+$excel = $null
+$workbook = $null
+
+try {
+    $excel = New-ExcelApplication
+    $workbook = $excel.Workbooks.Open($resolvedExcelPath, 0, $true)
+    $excel.CalculateFullRebuild()
+
+    foreach ($cellRecord in $workbookData.cells) {
+        $sheet = $null
+        $cell = $null
+        try {
+            $sheet = $workbook.Worksheets.Item([string]$cellRecord.sheet)
+            $cell = $sheet.Range([string]$cellRecord.address)
+
+            $liveFormula = if ([bool]$cell.HasFormula) { [string]$cell.Formula } else { $null }
+            $liveFormula2 = if ([bool]$cell.HasFormula) { Get-CellFormula2 -Cell $cell } else { $null }
+            $liveValue2 = Convert-VariantValue -Value $cell.Value2
+            $liveText = [string]$cell.Text
+
+            $expectedValue2 = if ($null -eq $cellRecord.value2) { $null } else { [string]$cellRecord.value2 }
+            $actualValue2 = if ($null -eq $liveValue2) { $null } else { [string]$liveValue2 }
+
+            if (($cellRecord.formula -ne $liveFormula) -or
+                ([string]$cellRecord.formula2 -ne [string]$liveFormula2) -or
+                ([string]$cellRecord.text -ne [string]$liveText) -or
+                ($expectedValue2 -ne $actualValue2)) {
+                [void]$mismatches.Add([ordered]@{
+                    sheet = [string]$cellRecord.sheet
+                    address = [string]$cellRecord.address
+                    expected = [ordered]@{
+                        formula = $cellRecord.formula
+                        formula2 = $cellRecord.formula2
+                        value2 = $cellRecord.value2
+                        text = $cellRecord.text
+                    }
+                    actual = [ordered]@{
+                        formula = $liveFormula
+                        formula2 = $liveFormula2
+                        value2 = $liveValue2
+                        text = $liveText
+                    }
+                })
+            }
+        }
+        catch {
+            Add-WarningMessage -Warnings $warnings -Message ("Cell verification failed for {0}!{1}: {2}" -f [string]$cellRecord.sheet, [string]$cellRecord.address, $_.Exception.Message)
+        }
+        finally {
+            if ($null -ne $cell) {
+                Release-ComReference $cell
+            }
+            if ($null -ne $sheet) {
+                Release-ComReference $sheet
+            }
+        }
+    }
+
+    $verifyStatus = if ($mismatches.Count -gt 0 -or $warnings.Count -gt 0) { 'warning' } else { 'success' }
+    $report = [ordered]@{
+        generated_at = Get-TimestampJst
+        generator = 'Excel2LLM PowerShell Verifier'
+        status = $verifyStatus
+        workbook_path = $resolvedExcelPath
+        workbook_json_path = $resolvedWorkbookJsonPath
+        mismatch_count = $mismatches.Count
+        warnings = $warnings
+        mismatches = $mismatches
+    }
+    Write-JsonFile -Data $report -Path $verifyReportPath
+
+    if (Test-Path -LiteralPath $manifestPath) {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $mergedWarnings = [System.Collections.Generic.List[string]]::new()
+
+        if ($null -ne $manifest.warnings) {
+            foreach ($existingWarning in $manifest.warnings) {
+                $mergedWarnings.Add([string]$existingWarning)
+            }
+        }
+
+        foreach ($warning in $warnings) {
+            $mergedWarnings.Add([string]$warning)
+        }
+
+        if ($mismatches.Count -gt 0) {
+            $mergedWarnings.Add("$($mismatches.Count) mismatch entries were written to verify_report.json.")
+        }
+
+        $manifest.warnings = $mergedWarnings
+        $manifest.verify_status = $verifyStatus
+        if ($verifyStatus -eq 'warning') {
+            $manifest.status = 'warning'
+        }
+
+        Write-JsonFile -Data $manifest -Path $manifestPath
+    }
+
+    Write-Host "Verified workbook -> $verifyReportPath"
+}
+catch {
+    throw "excel_verify.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
+}
+finally {
+    if ($null -ne $workbook) {
+        try {
+            $workbook.Close($false)
+        }
+        catch {
+        }
+        Release-ComReference $workbook
+    }
+    if ($null -ne $excel) {
+        try {
+            $excel.Quit()
+        }
+        catch {
+        }
+        Release-ComReference $excel
+    }
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
+}
