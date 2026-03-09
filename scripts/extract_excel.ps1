@@ -52,6 +52,9 @@ try {
     $totalCellCount = 0
 
     foreach ($sheet in $workbook.Worksheets) {
+        $sheetName = [string]$sheet.Name
+        $sheetIndex = [int]$sheet.Index
+        $sheetVisible = [int]$sheet.Visible
         $usedRange = $sheet.UsedRange
         $rangeInfo = Get-UsedRangeInfo -UsedRange $usedRange
         $freezePanes = Get-WorksheetFreezeState -Excel $excel -Worksheet $sheet
@@ -126,19 +129,19 @@ try {
                         if ($sheetMergedKeys.Add($mergeAreaAddress)) {
                             $anchorAddress = Convert-CoordinateToA1 -Row ([int]$mergeArea.Row) -Column ([int]$mergeArea.Column)
                             $mergeRecord = [ordered]@{
-                                sheet = [string]$sheet.Name
+                                sheet = $sheetName
                                 range = $mergeAreaAddress
                                 anchor = $anchorAddress
                             }
                             $sheetMergedRanges.Add($mergeRecord)
-                            if ($globalMergedKeys.Add(("{0}|{1}" -f [string]$sheet.Name, $mergeAreaAddress))) {
+                            if ($globalMergedKeys.Add(("{0}|{1}" -f $sheetName, $mergeAreaAddress))) {
                                 $mergedRanges.Add($mergeRecord)
                             }
                         }
                     }
 
                     $cellRecord = [ordered]@{
-                        sheet = [string]$sheet.Name
+                        sheet = $sheetName
                         address = $address
                         row = $rowIndex
                         column = $columnIndex
@@ -167,7 +170,7 @@ try {
                         try {
                             $styleRecord = Get-StyleRecord -Cell $cell
                             $styles.Add([ordered]@{
-                                sheet = [string]$sheet.Name
+                                sheet = $sheetName
                                 address = $address
                                 fill_color = $styleRecord.fill_color
                                 font_color = $styleRecord.font_color
@@ -178,7 +181,7 @@ try {
                             })
                         }
                         catch {
-                            Add-WarningMessage -Warnings $warnings -Message ("styles.json export skipped for {0}!{1}: {2}" -f [string]$sheet.Name, $address, $_.Exception.Message)
+                            Add-WarningMessage -Warnings $warnings -Message ("styles.json export skipped for {0}!{1}: {2}" -f $sheetName, $address, $_.Exception.Message)
                         }
                     }
                 }
@@ -194,9 +197,9 @@ try {
         }
 
         $sheets.Add([ordered]@{
-            sheet_name = [string]$sheet.Name
-            sheet_index = [int]$sheet.Index
-            visible = [int]$sheet.Visible
+            sheet_name = $sheetName
+            sheet_index = $sheetIndex
+            visible = $sheetVisible
             used_range = $rangeInfo
             freeze_panes = $freezePanes
             hidden_rows = $hiddenRows

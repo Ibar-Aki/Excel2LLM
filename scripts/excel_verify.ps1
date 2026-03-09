@@ -28,60 +28,71 @@ $warnings = [System.Collections.Generic.List[string]]::new()
 $mismatches = [System.Collections.Generic.List[object]]::new()
 $excel = $null
 $workbook = $null
+$cellsBySheet = Group-CellsBySheet -Cells @($workbookData.cells)
 
 try {
     $excel = New-ExcelApplication
     $workbook = $excel.Workbooks.Open($resolvedExcelPath, 0, $true)
     $excel.CalculateFullRebuild()
 
-    foreach ($cellRecord in $workbookData.cells) {
+    foreach ($sheetName in ($cellsBySheet.Keys | Sort-Object)) {
         $sheet = $null
-        $cell = $null
         try {
-            $sheet = $workbook.Worksheets.Item([string]$cellRecord.sheet)
-            $cell = $sheet.Range([string]$cellRecord.address)
+            $sheet = $workbook.Worksheets.Item([string]$sheetName)
 
-            $liveFormula = if ([bool]$cell.HasFormula) { [string]$cell.Formula } else { $null }
-            $liveFormula2 = if ([bool]$cell.HasFormula) { Get-CellFormula2 -Cell $cell } else { $null }
-            $liveValue2 = Convert-VariantValue -Value $cell.Value2
-            $liveText = [string]$cell.Text
+            foreach ($cellRecord in $cellsBySheet[$sheetName]) {
+                $cell = $null
+                try {
+                    $cell = $sheet.Cells.Item([int]$cellRecord.row, [int]$cellRecord.column)
 
-            $expectedValue2 = if ($null -eq $cellRecord.value2) { $null } else { [string]$cellRecord.value2 }
-            $actualValue2 = if ($null -eq $liveValue2) { $null } else { [string]$liveValue2 }
+                    $liveFormula = if ([bool]$cell.HasFormula) { [string]$cell.Formula } else { $null }
+                    $liveFormula2 = if ([bool]$cell.HasFormula) { Get-CellFormula2 -Cell $cell } else { $null }
+                    $liveValue2 = Convert-VariantValue -Value $cell.Value2
+                    $liveText = [string]$cell.Text
 
-            if (($cellRecord.formula -ne $liveFormula) -or
-                ([string]$cellRecord.formula2 -ne [string]$liveFormula2) -or
-                ([string]$cellRecord.text -ne [string]$liveText) -or
-                ($expectedValue2 -ne $actualValue2)) {
-                [void]$mismatches.Add([ordered]@{
-                    sheet = [string]$cellRecord.sheet
-                    address = [string]$cellRecord.address
-                    expected = [ordered]@{
-                        formula = $cellRecord.formula
-                        formula2 = $cellRecord.formula2
-                        value2 = $cellRecord.value2
-                        text = $cellRecord.text
+                    $expectedValue2 = if ($null -eq $cellRecord.value2) { $null } else { [string]$cellRecord.value2 }
+                    $actualValue2 = if ($null -eq $liveValue2) { $null } else { [string]$liveValue2 }
+
+                    if (($cellRecord.formula -ne $liveFormula) -or
+                        ([string]$cellRecord.formula2 -ne [string]$liveFormula2) -or
+                        ([string]$cellRecord.text -ne [string]$liveText) -or
+                        ($expectedValue2 -ne $actualValue2)) {
+                        [void]$mismatches.Add([ordered]@{
+                            sheet = [string]$cellRecord.sheet
+                            address = [string]$cellRecord.address
+                            expected = [ordered]@{
+                                formula = $cellRecord.formula
+                                formula2 = $cellRecord.formula2
+                                value2 = $cellRecord.value2
+                                text = $cellRecord.text
+                            }
+                            actual = [ordered]@{
+                                formula = $liveFormula
+                                formula2 = $liveFormula2
+                                value2 = $liveValue2
+                                text = $liveText
+                            }
+                        })
                     }
-                    actual = [ordered]@{
-                        formula = $liveFormula
-                        formula2 = $liveFormula2
-                        value2 = $liveValue2
-                        text = $liveText
+                }
+                catch {
+                    Add-WarningMessage -Warnings $warnings -Message ("Cell verification failed for {0}!{1}: {2}" -f [string]$cellRecord.sheet, [string]$cellRecord.address, $_.Exception.Message)
+                }
+                finally {
+                    if ($null -ne $cell) {
+                        Release-ComReference $cell
                     }
-                })
+                }
             }
         }
         catch {
-            Add-WarningMessage -Warnings $warnings -Message ("Cell verification failed for {0}!{1}: {2}" -f [string]$cellRecord.sheet, [string]$cellRecord.address, $_.Exception.Message)
+            Add-WarningMessage -Warnings $warnings -Message ("Sheet verification failed for {0}: {1}" -f [string]$sheetName, $_.Exception.Message)
         }
         finally {
-            if ($null -ne $cell) {
-                Release-ComReference $cell
-            }
             if ($null -ne $sheet) {
                 Release-ComReference $sheet
             }
-        }
+        }        
     }
 
     $verifyStatus = if ($mismatches.Count -gt 0 -or $warnings.Count -gt 0) { 'warning' } else { 'success' }

@@ -12,6 +12,9 @@ if (-not $OutputDir) {
 Ensure-Directory -Path $OutputDir
 $excel = $null
 $workbook = $null
+$sheet1 = $null
+$sheet2 = $null
+$sheet3 = $null
 
 try {
     $excel = New-ExcelApplication
@@ -81,6 +84,15 @@ catch {
     throw "create_sample_workbook.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
 }
 finally {
+    if ($null -ne $sheet3) {
+        Release-ComReference $sheet3
+    }
+    if ($null -ne $sheet2) {
+        Release-ComReference $sheet2
+    }
+    if ($null -ne $sheet1) {
+        Release-ComReference $sheet1
+    }
     if ($null -ne $workbook) {
         try {
             $workbook.Close($false)

@@ -26,10 +26,20 @@ function Get-ChunkRange {
         [object[]]$ChunkCells
     )
 
-    $minRow = ($ChunkCells | Measure-Object -Property row -Minimum).Minimum
-    $maxRow = ($ChunkCells | Measure-Object -Property row -Maximum).Maximum
-    $minColumn = ($ChunkCells | Measure-Object -Property column -Minimum).Minimum
-    $maxColumn = ($ChunkCells | Measure-Object -Property column -Maximum).Maximum
+    $minRow = [int]$ChunkCells[0].row
+    $maxRow = [int]$ChunkCells[0].row
+    $minColumn = [int]$ChunkCells[0].column
+    $maxColumn = [int]$ChunkCells[0].column
+
+    foreach ($cell in $ChunkCells) {
+        $row = [int]$cell.row
+        $column = [int]$cell.column
+
+        if ($row -lt $minRow) { $minRow = $row }
+        if ($row -gt $maxRow) { $maxRow = $row }
+        if ($column -lt $minColumn) { $minColumn = $column }
+        if ($column -gt $maxColumn) { $maxColumn = $column }
+    }
 
     $start = Convert-CoordinateToA1 -Row $minRow -Column $minColumn
     $end = Convert-CoordinateToA1 -Row $maxRow -Column $maxColumn
@@ -127,6 +137,7 @@ function Add-ChunkRecord {
 $resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
 $workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
 $styleLookup = @{}
+$cellsBySheet = Group-CellsBySheet -Cells @($workbookData.cells)
 
 if ($IncludeStyles -and (Test-Path -LiteralPath $StylesJsonPath)) {
     $stylesData = Get-Content -LiteralPath $StylesJsonPath -Raw | ConvertFrom-Json
@@ -146,7 +157,11 @@ $chunks = New-Object System.Collections.Generic.List[object]
 $chunkIndex = 0
 
 foreach ($sheet in $workbookData.sheets) {
-    $sheetCells = @($workbookData.cells | Where-Object { $_.sheet -eq $sheet.sheet_name } | Sort-Object row, column)
+    if (-not $cellsBySheet.ContainsKey([string]$sheet.sheet_name)) {
+        continue
+    }
+
+    $sheetCells = @($cellsBySheet[[string]$sheet.sheet_name] | Sort-Object row, column)
     if ($sheetCells.Count -eq 0) {
         continue
     }

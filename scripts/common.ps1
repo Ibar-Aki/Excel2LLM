@@ -63,6 +63,25 @@ function Get-TimestampJst {
     return (Get-Date).ToString("yyyy-MM-dd HH:mm 'JST'")
 }
 
+function Group-CellsBySheet {
+    param(
+        [Parameter(Mandatory)]
+        [object[]]$Cells
+    )
+
+    $lookup = @{}
+    foreach ($cell in $Cells) {
+        $sheetName = [string]$cell.sheet
+        if (-not $lookup.ContainsKey($sheetName)) {
+            $lookup[$sheetName] = [System.Collections.Generic.List[object]]::new()
+        }
+
+        [void]$lookup[$sheetName].Add($cell)
+    }
+
+    return $lookup
+}
+
 function Convert-ExcelColor {
     param(
         $ColorValue
@@ -165,6 +184,7 @@ function Get-CellHyperlink {
         $Cell
     )
 
+    $link = $null
     try {
         if ($Cell.Hyperlinks.Count -gt 0) {
             $link = $Cell.Hyperlinks.Item(1)
@@ -177,6 +197,11 @@ function Get-CellHyperlink {
     }
     catch {
         return $null
+    }
+    finally {
+        if ($null -ne $link) {
+            Release-ComReference $link
+        }
     }
 
     return $null
@@ -258,48 +283,51 @@ function Get-CellThreadedComment {
             $repliesCollection = $commentThreaded.Replies
             if ($null -ne $repliesCollection) {
                 foreach ($reply in $repliesCollection) {
-                    $replyText = $null
-                    $replyAuthor = $null
-                    $replyDate = $null
-
                     try {
-                        $replyText = [string]$reply.Text()
-                    }
-                    catch {
-                        try {
-                            $replyText = [string]$reply.Text
-                        }
-                        catch {
-                            $replyText = $null
-                        }
-                    }
-
-                    try {
-                        $replyAuthor = [string]$reply.Author.Name
-                    }
-                    catch {
-                        try {
-                            $replyAuthor = [string]$reply.Author
-                        }
-                        catch {
-                            $replyAuthor = $null
-                        }
-                    }
-
-                    try {
-                        $replyDate = ([datetime]$reply.Date).ToString('o')
-                    }
-                    catch {
+                        $replyText = $null
+                        $replyAuthor = $null
                         $replyDate = $null
+
+                        try {
+                            $replyText = [string]$reply.Text()
+                        }
+                        catch {
+                            try {
+                                $replyText = [string]$reply.Text
+                            }
+                            catch {
+                                $replyText = $null
+                            }
+                        }
+
+                        try {
+                            $replyAuthor = [string]$reply.Author.Name
+                        }
+                        catch {
+                            try {
+                                $replyAuthor = [string]$reply.Author
+                            }
+                            catch {
+                                $replyAuthor = $null
+                            }
+                        }
+
+                        try {
+                            $replyDate = ([datetime]$reply.Date).ToString('o')
+                        }
+                        catch {
+                            $replyDate = $null
+                        }
+
+                        [void]$replyList.Add([ordered]@{
+                            text = $replyText
+                            author = $replyAuthor
+                            created_at = $replyDate
+                        })
                     }
-
-                    [void]$replyList.Add([ordered]@{
-                        text = $replyText
-                        author = $replyAuthor
-                        created_at = $replyDate
-                    })
-
-                    Release-ComReference $reply
+                    finally {
+                        Release-ComReference $reply
+                    }
                 }
             }
         }
@@ -379,6 +407,11 @@ function Get-WorksheetFreezeState {
     }
     catch {
         $state.enabled = $false
+    }
+    finally {
+        if ($null -ne $window) {
+            Release-ComReference $window
+        }
     }
 
     return $state
