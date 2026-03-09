@@ -18,6 +18,7 @@ Windows と M365 Excel を前提に、Excel ブックを LLM 向けの正規化 
 
 - `docs/USER_GUIDE.md`: 最初のセットアップ、実行手順、出力の見方、トラブル対応
 - `docs/USE_CASES.md`: 実務での使い方、LLM への渡し方、用途別の具体例
+- `docs/OPERATIONS.md`: テスト、運用、リリース、Git 管理の実務手順
 - `docs/FORMAT.md`: JSON と JSONL の構造
 - `docs/VBA_HELPER.md`: VBA 補助の使い方
 
