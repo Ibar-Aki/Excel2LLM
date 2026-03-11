@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-10 00:55 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-10
+- 更新日: 2026-03-11
 
 ## workbook.json
 
@@ -95,3 +95,35 @@
 - `formula_cells`
 - `token_estimate`
 - `includes_styles`
+
+## rebuild_report.json
+
+`rebuild_report.json` は `workbook.json` から `.xlsx` を逆生成した結果の記録です。
+
+```json
+{
+  "generated_at": "",
+  "generator": "",
+  "status": "",
+  "warnings": [],
+  "workbook_json_path": "",
+  "styles_json_path": "",
+  "output_path": "",
+  "output_extension": ".xlsx",
+  "source_has_vba": false,
+  "restored_sheets": 0,
+  "restored_cells": 0,
+  "restored_formulas": 0,
+  "restored_comments": 0,
+  "restored_hyperlinks": 0,
+  "restored_styles": 0,
+  "restored_merged_ranges": 0,
+  "threaded_comment_fallbacks": 0
+}
+```
+
+### 注意
+
+- `output_extension` は常に `.xlsx` です
+- `source_has_vba=true` でも VBA 本体は復元されません
+- `threaded_comment_fallbacks` はスレッドコメントを通常コメントへ落とした件数です

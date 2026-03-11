@@ -2,13 +2,13 @@
 
 - 作成日: 2026-03-10 00:55 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-10
+- 更新日: 2026-03-11
 
 Windows と M365 Excel を前提に、Excel ブックを LLM 向けの正規化 JSON と JSONL に変換するツール群です。追加インストールは前提にせず、`PowerShell`、`Excel COM`、`VBA`、`bat` だけで動作します。
 
 ## ディレクトリ構成
 
-- `scripts/`: 抽出、パック、検証、サンプル生成の PowerShell スクリプト
+- `scripts/`: 抽出、パック、検証、逆生成、サンプル生成の PowerShell スクリプト
 - `output/`: 生成される `workbook.json`、`styles.json`、`llm_package.jsonl` などの出力先
 - `docs/`: 運用メモ、データ形式、VBA 補助の説明
 - `templates/`: 任意で Excel に取り込める VBA テンプレート
@@ -16,8 +16,11 @@ Windows と M365 Excel を前提に、Excel ブックを LLM 向けの正規化 
 
 ## まず読むドキュメント
 
+- `docs/MANUAL.md`: 初めて使う人向けの最優先マニュアル。まずはこれを上から読む
 - `docs/USER_GUIDE.md`: 最初のセットアップ、実行手順、出力の見方、トラブル対応
+- `docs/LLM_PROMPT_FORMATS.md`: Excel2LLM の出力を LLM にどう指示するかの用途別テンプレート集
 - `docs/USE_CASES.md`: 実務での使い方、LLM への渡し方、用途別の具体例
+- `docs/DOMAIN_SCENARIO_REPORT_20260311.md`: 機械設計向け、会計向けの一気通貫シナリオ検証レポート
 - `docs/OPERATIONS.md`: テスト、運用、リリース、Git 管理の実務手順
 - `docs/FORMAT.md`: JSON と JSONL の構造
 - `docs/VBA_HELPER.md`: VBA 補助の使い方
@@ -28,6 +31,7 @@ Windows と M365 Excel を前提に、Excel ブックを LLM 向けの正規化 
 - 色、罫線、配置などの見た目情報を `styles.json` に分離保存
 - LLM にそのまま流し込みやすい `llm_package.jsonl` を生成
 - Excel 再計算後の差分確認を `verify_report.json` と `manifest.json` に保存
+- `workbook.json` から `.xlsx` を逆生成し、`rebuild_report.json` に復元結果を保存
 - 任意で VBA 補助モジュールを使い、再計算や表示値確認を手動補助
 
 ## 前提条件
@@ -42,11 +46,13 @@ Windows と M365 Excel を前提に、Excel ブックを LLM 向けの正規化 
 run_extract.bat "C:\path\to\book.xlsx"
 run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
 run_verify.bat "C:\path\to\book.xlsx"
+run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
+run_domain_acceptance.bat
 run_self_test.bat
 run_tests.bat
 ```
 
-`run_extract.bat` は既定で `output/workbook.json`、空またはスキップ状態の `output/styles.json`、`output/manifest.json` を生成します。`run_pack.bat` は既定で `output/llm_package.jsonl` を生成します。
+`run_extract.bat` は既定で `output/workbook.json`、空またはスキップ状態の `output/styles.json`、`output/manifest.json` を生成します。`run_pack.bat` は既定で `output/llm_package.jsonl` を生成します。`run_rebuild.bat` は既定で `output/rebuilt/*.xlsx` と `output/rebuilt/rebuild_report.json` を生成します。
 
 ## 実行例
 
@@ -55,6 +61,8 @@ run_extract.bat "C:\Data\sample.xlsx"
 run_extract.bat "C:\Data\sample.xlsx" -CollectStyles
 run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxCells 300
 run_verify.bat "C:\Data\sample.xlsx" -WorkbookJsonPath "C:\Work_Codex\Excel2LLM\output\workbook.json"
+run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
+run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -StylesJsonPath "C:\Work_Codex\Excel2LLM\output\styles.json" -OutputPath "C:\Data\rebuilt.xlsx" -Overwrite
 ```
 
 ## 出力ファイル
@@ -64,9 +72,11 @@ run_verify.bat "C:\Data\sample.xlsx" -WorkbookJsonPath "C:\Work_Codex\Excel2LLM\
 - `manifest.json`: 抽出結果の概要、警告、検証状態
 - `llm_package.jsonl`: LLM 向けのチャンク化済み JSONL
 - `verify_report.json`: 再計算後の差分検証レポート
+- `rebuild_report.json`: `workbook.json` からの逆生成結果、警告、復元件数
 
 ## 制約
 
 - 初期対応形式は `.xlsx` と `.xlsm` です
 - `styles.json` は補助情報のため、既定では取得しません。色や罫線が未取得でも主処理は継続します
+- 逆生成の出力形式は常に `.xlsx` です。`has_vba=true` でも VBA 本体は復元しません
 - 条件付き書式の見た目そのものは完全再現しません。必要時は VBA 補助または Excel 上での確認を併用してください

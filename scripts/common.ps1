@@ -138,7 +138,7 @@ function Convert-VariantValue {
 function Add-WarningMessage {
     param(
         [Parameter(Mandatory)]
-        [System.Collections.Generic.List[string]]$Warnings,
+        $Warnings,
         [Parameter(Mandatory)]
         [string]$Message
     )
@@ -578,4 +578,157 @@ function Convert-CoordinateToA1 {
     }
 
     return '{0}{1}' -f $letters, $Row
+}
+
+function Convert-ColumnLettersToNumber {
+    param(
+        [Parameter(Mandatory)]
+        [string]$ColumnLetters
+    )
+
+    $normalized = $ColumnLetters.Trim().ToUpperInvariant()
+    if ($normalized -notmatch '^[A-Z]+$') {
+        throw "Invalid column letters: $ColumnLetters"
+    }
+
+    $columnNumber = 0
+    foreach ($letter in $normalized.ToCharArray()) {
+        $columnNumber = ($columnNumber * 26) + ([int][char]$letter - [int][char]'A' + 1)
+    }
+
+    return $columnNumber
+}
+
+function Convert-A1ToCoordinate {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Address
+    )
+
+    $match = [System.Text.RegularExpressions.Regex]::Match($Address.Trim().ToUpperInvariant(), '^([A-Z]+)(\d+)$')
+    if (-not $match.Success) {
+        throw "Invalid A1 address: $Address"
+    }
+
+    return [ordered]@{
+        row = [int]$match.Groups[2].Value
+        column = Convert-ColumnLettersToNumber -ColumnLetters $match.Groups[1].Value
+    }
+}
+
+function Get-SheetLookupByName {
+    param(
+        [Parameter(Mandatory)]
+        [object[]]$Sheets
+    )
+
+    $lookup = @{}
+    foreach ($sheet in $Sheets) {
+        $sheetName = [string]$sheet.sheet_name
+        if ($lookup.ContainsKey($sheetName)) {
+            throw "Duplicate sheet name detected: $sheetName"
+        }
+
+        $lookup[$sheetName] = $sheet
+    }
+
+    return $lookup
+}
+
+function Get-CellLookupBySheetAndAddress {
+    param(
+        [Parameter(Mandatory)]
+        [object[]]$Cells
+    )
+
+    $lookup = @{}
+    foreach ($cell in $Cells) {
+        $sheetName = [string]$cell.sheet
+        $address = [string]$cell.address
+
+        if (-not $lookup.ContainsKey($sheetName)) {
+            $lookup[$sheetName] = @{}
+        }
+
+        if ($lookup[$sheetName].ContainsKey($address)) {
+            throw "Duplicate cell address detected: $sheetName!$address"
+        }
+
+        $lookup[$sheetName][$address] = $cell
+    }
+
+    return $lookup
+}
+
+function Get-StyleLookupBySheetAndAddress {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$Styles
+    )
+
+    $lookup = @{}
+    foreach ($style in $Styles) {
+        $sheetName = [string]$style.sheet
+        $address = [string]$style.address
+
+        if (-not $lookup.ContainsKey($sheetName)) {
+            $lookup[$sheetName] = @{}
+        }
+
+        $lookup[$sheetName][$address] = $style
+    }
+
+    return $lookup
+}
+
+function Convert-HexColorToExcelColor {
+    param(
+        [string]$Color
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Color)) {
+        return $null
+    }
+
+    $normalized = $Color.Trim()
+    if ($normalized -notmatch '^#?([0-9A-Fa-f]{6})$') {
+        throw "Invalid color code: $Color"
+    }
+
+    $hex = $Matches[1]
+    $red = [Convert]::ToInt32($hex.Substring(0, 2), 16)
+    $green = [Convert]::ToInt32($hex.Substring(2, 2), 16)
+    $blue = [Convert]::ToInt32($hex.Substring(4, 2), 16)
+    return $red + ($green -shl 8) + ($blue -shl 16)
+}
+
+function Set-WorksheetFreezeState {
+    param(
+        [Parameter(Mandatory)]
+        $Excel,
+        [Parameter(Mandatory)]
+        $Worksheet,
+        [Parameter(Mandatory)]
+        $FreezeState
+    )
+
+    $window = $null
+    try {
+        [void]$Worksheet.Activate()
+        $window = $Excel.ActiveWindow
+        if ($null -eq $window) {
+            return
+        }
+
+        $window.FreezePanes = $false
+        $window.SplitRow = [int]$FreezeState.split_row
+        $window.SplitColumn = [int]$FreezeState.split_column
+        $window.FreezePanes = [bool]$FreezeState.enabled
+    }
+    finally {
+        if ($null -ne $window) {
+            Release-ComReference $window
+        }
+    }
 }

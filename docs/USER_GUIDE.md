@@ -2,10 +2,13 @@
 
 - 作成日: 2026-03-10 01:30 JST
 - 作成者: Codex (GPT-5)
+- 更新日: 2026-03-11
 
 ## これは何か
 
 `Excel2LLM` は、Excel ブックをそのまま LLM に投げる代わりに、まず欠落の少ない JSON へ変換し、その後に LLM 向けのチャンクへ整形するためのツールです。
+
+最初に全体像をつかみたい場合は、先に `docs/MANUAL.md` を読むことを推奨します。この `USER_GUIDE.md` は、その次に見る詳しめの手引きです。
 
 このツールが特に向いているケース:
 
@@ -55,6 +58,23 @@ run_verify.bat "C:\Data\report.xlsx"
 
 - `output\verify_report.json`
 
+### 4. JSON から Excel を逆生成する
+
+```bat
+run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
+```
+
+style も戻したい場合:
+
+```bat
+run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -StylesJsonPath "C:\Work_Codex\Excel2LLM\output\styles.json" -OutputPath "C:\Data\rebuilt.xlsx" -Overwrite
+```
+
+生成されるファイル:
+
+- `output\rebuilt\*.xlsx`
+- `output\rebuilt\rebuild_report.json`
+
 ## どのコマンドを使うべきか
 
 ### まず抽出だけしたい
@@ -92,6 +112,18 @@ run_verify.bat "C:\Data\book.xlsx" -WorkbookJsonPath "C:\Work_Codex\Excel2LLM\ou
 - 数式の再計算結果が心配
 - Excel 側の表示値とのズレを確認したい
 - 重要な資料を LLM に渡す前に検証したい
+
+### JSON から Excel を戻したい
+
+```bat
+run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
+```
+
+用途:
+
+- LLM や JSON 編集後の内容を Excel へ戻したい
+- 数式、結合セル、hidden 行列、freeze panes を再構築したい
+- style は必要時だけ `styles.json` から戻したい
 
 ## よく使うオプション
 
@@ -135,6 +167,14 @@ run_extract.bat "C:\Data\book.xlsx" -CollectStyles
 - 既定では style を取りません
 - style 取得は遅くなりやすいです
 - まずは style なしで運用し、必要な案件だけ付けるのが安全です
+
+### `-Overwrite`
+
+逆生成先の `.xlsx` を上書きするときに使います。
+
+```bat
+run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -Overwrite
+```
 
 ## 出力ファイルの見方
 
@@ -200,6 +240,26 @@ Excel 再計算後との差分です。
 - `mismatch_count`
 - `mismatches[]`
 
+### `rebuild_report.json`
+
+逆生成の結果です。
+
+主に見る項目:
+
+- `status`
+- `warnings`
+- `output_path`
+- `restored_sheets`
+- `restored_cells`
+- `restored_formulas`
+- `restored_styles`
+
+使いどころ:
+
+- Excel への戻し結果の確認
+- VBA 未復元や style 復元失敗の確認
+- threaded comment が通常コメントへ落ちた件数の確認
+
 ## LLM への渡し方
 
 ### 方法 1: まず人が確認してから渡す
@@ -240,6 +300,8 @@ Excel 再計算後との差分です。
 - 社内検索
 
 ## 推奨プロンプト
+
+用途別にそのまま使える詳しいテンプレートは `docs/LLM_PROMPT_FORMATS.md` を参照してください。ここでは短めの例だけ載せます。
 
 ### シート構造を理解させたい
 

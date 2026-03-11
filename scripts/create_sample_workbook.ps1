@@ -15,6 +15,7 @@ $workbook = $null
 $sheet1 = $null
 $sheet2 = $null
 $sheet3 = $null
+$window = $null
 
 try {
     $excel = New-ExcelApplication
@@ -45,6 +46,11 @@ try {
     $sheet1.Range('A8').Value2 = 'Example'
     $sheet1.Hyperlinks.Add($sheet1.Range('A8'), 'https://example.com') | Out-Null
     $sheet1.Range('B8').AddComment('Legacy comment') | Out-Null
+    [void]$sheet1.Activate()
+    $window = $excel.ActiveWindow
+    $window.SplitRow = 1
+    $window.SplitColumn = 1
+    $window.FreezePanes = $true
 
     $sheet2 = $workbook.Worksheets.Add()
     $sheet2.Name = 'WideTable'
@@ -84,6 +90,9 @@ catch {
     throw "create_sample_workbook.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
 }
 finally {
+    if ($null -ne $window) {
+        Release-ComReference $window
+    }
     if ($null -ne $sheet3) {
         Release-ComReference $sheet3
     }
