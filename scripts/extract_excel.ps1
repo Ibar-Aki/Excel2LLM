@@ -5,7 +5,9 @@ param(
     [string]$OutputDir,
     [switch]$CollectStyles,
     [switch]$SkipStyles,
-    [switch]$NoRecalculate
+    [switch]$NoRecalculate,
+    [switch]$RedactPaths,
+    [switch]$AllowWorkbookMacros
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -26,12 +28,13 @@ $usedRange = $null
 try {
     $resolvedExcelPath = Resolve-AbsolutePath -Path $ExcelPath
     Ensure-Directory -Path $OutputDir
+    $resolvedOutputDir = Get-NormalizedFullPath -Path $OutputDir
 
     $workbookJsonPath = Join-Path $OutputDir 'workbook.json'
     $stylesJsonPath = Join-Path $OutputDir 'styles.json'
     $manifestJsonPath = Join-Path $OutputDir 'manifest.json'
 
-    $excel = New-ExcelApplication
+    $excel = New-ExcelApplication -AllowWorkbookMacros:$AllowWorkbookMacros
     $workbook = $excel.Workbooks.Open($resolvedExcelPath, 0, $true)
     if (-not $NoRecalculate) {
         try {
@@ -224,7 +227,7 @@ try {
         generator = 'Excel2LLM PowerShell Extractor'
         workbook = [ordered]@{
             name = [string]$workbook.Name
-            path = $resolvedExcelPath
+            path = if ($RedactPaths) { [System.IO.Path]::GetFileName($resolvedExcelPath) } else { $resolvedExcelPath }
             extension = [System.IO.Path]::GetExtension($resolvedExcelPath)
             sheet_count = [int]$workbook.Worksheets.Count
             has_vba = @('.xlsm', '.xlam') -contains ([System.IO.Path]::GetExtension($resolvedExcelPath).ToLowerInvariant())
@@ -248,8 +251,8 @@ try {
         generator = 'Excel2LLM PowerShell Extractor'
         status = $status
         warnings = $warnings
-        workbook_path = $resolvedExcelPath
-        output_directory = [System.IO.Path]::GetFullPath($OutputDir)
+        workbook_path = if ($RedactPaths) { [System.IO.Path]::GetFileName($resolvedExcelPath) } else { $resolvedExcelPath }
+        output_directory = if ($RedactPaths) { [string](Split-Path -Path $resolvedOutputDir -Leaf) } else { $resolvedOutputDir }
         sheet_count = [int]$workbook.Worksheets.Count
         cell_count = $totalCellCount
         formula_count = $totalFormulaCount

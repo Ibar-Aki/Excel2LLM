@@ -25,6 +25,15 @@ function Resolve-AbsolutePath {
     return [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $Path).Path)
 }
 
+function Get-NormalizedFullPath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    return [System.IO.Path]::GetFullPath($Path)
+}
+
 function Write-JsonFile {
     param(
         [Parameter(Mandatory)]
@@ -34,7 +43,7 @@ function Write-JsonFile {
         [int]$Depth = 100
     )
 
-    $json = $Data | ConvertTo-Json -Depth $Depth
+    $json = ($Data | ConvertTo-Json -Depth $Depth) -replace "`r`n", "`n"
     [System.IO.File]::WriteAllText($Path, $json, [System.Text.Encoding]::UTF8)
 }
 
@@ -159,11 +168,43 @@ function Release-ComReference {
 }
 
 function New-ExcelApplication {
+    param(
+        [switch]$AllowWorkbookMacros
+    )
+
     $excel = New-Object -ComObject Excel.Application
     $excel.Visible = $false
     $excel.DisplayAlerts = $false
     $excel.ScreenUpdating = $false
+    if (-not $AllowWorkbookMacros) {
+        try {
+            $excel.AutomationSecurity = 3
+        }
+        catch {
+        }
+    }
     return $excel
+}
+
+function Test-PathWithinDirectory {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [Parameter(Mandatory)]
+        [string]$DirectoryPath
+    )
+
+    $resolvedPath = Get-NormalizedFullPath -Path $Path
+    $resolvedDirectoryPath = Get-NormalizedFullPath -Path $DirectoryPath
+    $directoryPrefix = if ($resolvedDirectoryPath.EndsWith([System.IO.Path]::DirectorySeparatorChar.ToString())) {
+        $resolvedDirectoryPath
+    }
+    else {
+        $resolvedDirectoryPath + [System.IO.Path]::DirectorySeparatorChar
+    }
+
+    return $resolvedPath.Equals($resolvedDirectoryPath, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $resolvedPath.StartsWith($directoryPrefix, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function Get-BorderNames {

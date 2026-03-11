@@ -9,6 +9,7 @@ $sampleScript = Join-Path $projectRoot 'scripts\create_sample_workbook.ps1'
 $domainSampleScript = Join-Path $projectRoot 'scripts\create_domain_sample_workbooks.ps1'
 $promptBundleScript = Join-Path $projectRoot 'scripts\export_prompt_bundle.ps1'
 $acceptanceScript = Join-Path $projectRoot 'scripts\run_domain_acceptance.ps1'
+$sharePackageScript = Join-Path $projectRoot 'scripts\build_share_package.ps1'
 
 Describe 'Excel2LLM integration tests' {
     It 'extracts workbook metadata, formulas, merge information, and xlsm VBA metadata' {
@@ -35,6 +36,25 @@ Describe 'Excel2LLM integration tests' {
         & $extractScript -ExcelPath (Join-Path $samplesDir 'sample.xlsm') -OutputDir $outputDir
         $xlsmWorkbookJson = Get-Content -LiteralPath (Join-Path $outputDir 'workbook.json') -Raw | ConvertFrom-Json
         $xlsmWorkbookJson.workbook.has_vba | Should Be $true
+    }
+
+    It 'supports path redaction and explicit macro opt-in for extract and verify flows' {
+        $workspace = New-TestWorkspace -Name 'security-options'
+        $bookPath = Join-Path $workspace 'security.xlsx'
+        $outputDir = Join-Path $workspace 'output'
+
+        New-MiniWorkbook -Path $bookPath
+        & $extractScript -ExcelPath $bookPath -OutputDir $outputDir -RedactPaths -AllowWorkbookMacros
+        & $verifyScript -ExcelPath $bookPath -WorkbookJsonPath (Join-Path $outputDir 'workbook.json') -OutputDir $outputDir -AllowWorkbookMacros
+
+        $workbookJson = Get-Content -LiteralPath (Join-Path $outputDir 'workbook.json') -Raw | ConvertFrom-Json
+        $manifest = Get-Content -LiteralPath (Join-Path $outputDir 'manifest.json') -Raw | ConvertFrom-Json
+        $verifyReport = Get-Content -LiteralPath (Join-Path $outputDir 'verify_report.json') -Raw | ConvertFrom-Json
+
+        $workbookJson.workbook.path | Should Be 'security.xlsx'
+        $manifest.workbook_path | Should Be 'security.xlsx'
+        $manifest.output_directory | Should Be 'output'
+        $verifyReport.status | Should Be 'success'
     }
 
     It 'differentiates sheet chunking from range chunking' {
@@ -235,6 +255,60 @@ Describe 'Excel2LLM integration tests' {
         $promptFiles.Count | Should Be $manifest.prompt_count
         (Test-Path -LiteralPath $keepFile) | Should Be $true
         (Test-Path -LiteralPath $manifest.prompts[0].path) | Should Be $true
+    }
+
+    It 'does not delete files outside the prompt output directory when manifest paths are tampered' {
+        $workspace = New-TestWorkspace -Name 'prompt-cleanup-guard'
+        $samplesDir = Join-Path $workspace 'samples'
+        $extractDir = Join-Path $workspace 'extract'
+        $promptDir = Join-Path $workspace 'prompts'
+        $outsideFile = Join-Path $workspace 'outside.txt'
+
+        & $domainSampleScript -OutputDir $samplesDir -Scenario mechanical -Variant original
+        & $extractScript -ExcelPath (Join-Path $samplesDir 'mechanical_original.xlsx') -OutputDir $extractDir
+        & $packScript -WorkbookJsonPath (Join-Path $extractDir 'workbook.json') -OutputPath (Join-Path $extractDir 'llm_package.jsonl') -ChunkBy range -MaxCells 120
+
+        Ensure-Directory -Path $promptDir
+        Set-Content -LiteralPath $outsideFile -Value 'keep me'
+        Write-JsonFile -Path (Join-Path $promptDir 'prompt_bundle_manifest.json') -Data ([ordered]@{
+            prompts = @(
+                [ordered]@{
+                    path = $outsideFile
+                }
+            )
+        })
+
+        & $promptBundleScript -WorkbookJsonPath (Join-Path $extractDir 'workbook.json') -JsonlPath (Join-Path $extractDir 'llm_package.jsonl') -Scenario mechanical -OutputDir $promptDir
+
+        $manifest = Get-Content -LiteralPath (Join-Path $promptDir 'prompt_bundle_manifest.json') -Raw | ConvertFrom-Json
+        (Test-Path -LiteralPath $outsideFile) | Should Be $true
+        ($manifest.warnings -join ' ') | Should Match 'outside output directory'
+    }
+
+    It 'blocks share package cleanup outside distribution unless explicit override flags are provided' {
+        $workspace = New-TestWorkspace -Name 'share-package-guard'
+        $outsideDir = Join-Path $workspace 'share-package'
+        Ensure-Directory -Path $outsideDir
+        Set-Content -LiteralPath (Join-Path $outsideDir 'placeholder.txt') -Value 'placeholder'
+
+        $didThrow = $false
+        try {
+            & $sharePackageScript -OutputDir $outsideDir
+        }
+        catch {
+            $didThrow = $true
+        }
+
+        $didThrow | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'placeholder.txt')) | Should Be $true
+
+        & $sharePackageScript -OutputDir $outsideDir -AllowOutsideDistribution -ForceCleanOutputDir
+
+        $shareManifest = Get-Content -LiteralPath (Join-Path $outsideDir 'share_manifest.json') -Raw | ConvertFrom-Json
+        (@($shareManifest.PSObject.Properties.Name) -contains 'source_project_root') | Should Be $false
+        (@($shareManifest.PSObject.Properties.Name) -contains 'output_directory') | Should Be $false
+        $shareManifest.package_name | Should Be 'share-package'
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'README.md')) | Should Be $true
     }
 
     It 'runs domain acceptance workflow for accounting original sample' {

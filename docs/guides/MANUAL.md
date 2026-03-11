@@ -2,6 +2,7 @@
 
 - 作成日: 2026-03-11 02:35 JST
 - 作成者: Codex (GPT-5)
+- 更新日: 2026-03-12
 
 ## このマニュアルの目的
 
@@ -18,6 +19,8 @@
 ```bat
 run_extract.bat "C:\Data\book.xlsx"
 ```
+
+不審な Excel を扱う場合でも、既定ではブックマクロを無効化して開きます。
 
 ### 2. LLM に渡しやすい形に分割する
 
@@ -225,6 +228,27 @@ run_extract.bat "C:\Data\book.xlsx" -CollectStyles
 
 まずは style なしで始めて、必要な案件だけ使うのが安全です。
 
+### `-RedactPaths`
+
+生成される `workbook.json` と `manifest.json` から、元 Excel の絶対パスを減らしたいときに使います。
+
+```bat
+run_extract.bat "C:\Data\book.xlsx" -RedactPaths
+```
+
+配布前や他部署へ渡す前に使うのが安全です。
+
+### `-AllowWorkbookMacros`
+
+既定では無効化されるブックマクロを、明示的に許可したいときだけ使います。
+
+```bat
+run_extract.bat "C:\Data\trusted.xlsm" -AllowWorkbookMacros
+run_verify.bat "C:\Data\trusted.xlsm" -AllowWorkbookMacros
+```
+
+信頼済みファイルだけで使ってください。
+
 ### `-ChunkBy sheet`
 
 シートのまとまりを重視して分割します。
@@ -404,6 +428,14 @@ run_extract.bat "C:\Data\book.xlsx" -CollectStyles
 
 逆生成の出力は常に `.xlsx` です。VBA 本体は戻しません。
 
+### 配布用フォルダを別の場所へ作りたい
+
+既定では `distribution\` 配下だけ安全に作り直します。配下外を使う場合は、明示フラグが必要です。
+
+```bat
+run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDistribution -ForceCleanOutputDir
+```
+
 ## 制約
 
 - 対応形式は主に `.xlsx` と `.xlsm`
@@ -418,9 +450,9 @@ run_extract.bat "C:\Data\book.xlsx" -CollectStyles
 
 1. `README.md`
 2. この `MANUAL.md`
-3. `docs/USER_GUIDE.md`
-4. `docs/USE_CASES.md`
-5. `docs/FORMAT.md`
+3. `docs/guides/USER_GUIDE.md`
+4. `docs/guides/USE_CASES.md`
+5. `docs/reference/FORMAT.md`
 
 ## 最後に
 

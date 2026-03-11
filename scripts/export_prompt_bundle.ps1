@@ -115,18 +115,45 @@ if (-not $OutputDir) {
 }
 
 Ensure-Directory -Path $OutputDir
-$manifestPath = Join-Path $OutputDir 'prompt_bundle_manifest.json'
+$resolvedOutputDir = Get-NormalizedFullPath -Path $OutputDir
+$manifestPath = Join-Path $resolvedOutputDir 'prompt_bundle_manifest.json'
+$warnings = [System.Collections.Generic.List[string]]::new()
 if (Test-Path -LiteralPath $manifestPath) {
     try {
         $existingManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
         foreach ($existingPrompt in @($existingManifest.prompts)) {
             $existingPath = [string]$existingPrompt.path
-            if (-not [string]::IsNullOrWhiteSpace($existingPath) -and (Test-Path -LiteralPath $existingPath)) {
-                Remove-Item -LiteralPath $existingPath -Force
+            if ([string]::IsNullOrWhiteSpace($existingPath)) {
+                continue
+            }
+
+            $resolvedExistingPath = $null
+            try {
+                $resolvedExistingPath = Get-NormalizedFullPath -Path $existingPath
+            }
+            catch {
+                Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup for invalid path: {0}" -f $existingPath)
+                continue
+            }
+
+            $fileName = [System.IO.Path]::GetFileName($resolvedExistingPath)
+            if (-not (Test-PathWithinDirectory -Path $resolvedExistingPath -DirectoryPath $resolvedOutputDir)) {
+                Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup outside output directory: {0}" -f $resolvedExistingPath)
+                continue
+            }
+
+            if ($fileName -notlike 'prompt_*.txt') {
+                Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup for unmanaged file name: {0}" -f $resolvedExistingPath)
+                continue
+            }
+
+            if (Test-Path -LiteralPath $resolvedExistingPath) {
+                Remove-Item -LiteralPath $resolvedExistingPath -Force
             }
         }
     }
     catch {
+        Add-WarningMessage -Warnings $warnings -Message ("Prompt bundle cleanup skipped because manifest could not be read: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -145,8 +172,8 @@ $promptFiles = [System.Collections.Generic.List[object]]::new()
 $index = 1
 
 foreach ($chunk in $selectedChunks) {
-    $fileName = '{0:D2}_{1}_{2}.txt' -f $index, $Scenario, ([string]$chunk.sheet_name).Replace(' ', '_')
-    $promptPath = Join-Path $OutputDir $fileName
+    $fileName = 'prompt_{0:D2}_{1}_{2}.txt' -f $index, $Scenario, ([string]$chunk.sheet_name).Replace(' ', '_')
+    $promptPath = Join-Path $resolvedOutputDir $fileName
     $content = Convert-ChunkToPromptText -Chunk $chunk -ScenarioInstructions $scenarioInstructions -WorkbookName ([string]$workbookData.workbook.name)
     [System.IO.File]::WriteAllText($promptPath, $content, [System.Text.Encoding]::UTF8)
     [void]$promptFiles.Add([ordered]@{
@@ -166,8 +193,9 @@ $manifest = [ordered]@{
     workbook_json_path = $resolvedWorkbookJsonPath
     jsonl_path = $resolvedJsonlPath
     prompt_count = $promptFiles.Count
+    warnings = @($warnings)
     prompts = @($promptFiles)
 }
 
 Write-JsonFile -Data $manifest -Path $manifestPath
-Write-Host "Exported prompt bundle -> $OutputDir"
+Write-Host "Exported prompt bundle -> $resolvedOutputDir"

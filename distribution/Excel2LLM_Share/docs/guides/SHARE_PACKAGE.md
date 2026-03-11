@@ -2,6 +2,7 @@
 
 - 作成日: 2026-03-12 00:25 JST
 - 作成者: Codex (GPT-5)
+- 更新日: 2026-03-12
 
 ## この文書の目的
 
@@ -32,6 +33,12 @@ run_build_share_package.bat
 
 ```text
 distribution\Excel2LLM_Share
+```
+
+`distribution\` 配下以外へ生成したい場合は、明示フラグが必要です。
+
+```bat
+run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDistribution -ForceCleanOutputDir
 ```
 
 ## 配布用フォルダに入るもの
@@ -66,12 +73,14 @@ distribution\Excel2LLM_Share
 推奨順は次です。
 
 1. `README.md`
-2. `docs\MANUAL.md`
-3. `docs\USER_GUIDE.md`
-4. `docs\LLM_PROMPT_FORMATS.md`
+2. `docs\guides\MANUAL.md`
+3. `docs\guides\USER_GUIDE.md`
+4. `docs\reference\LLM_PROMPT_FORMATS.md`
 
 ## 注意
 
 - 配布用フォルダは生成物です
 - 再生成時は `distribution\Excel2LLM_Share` を作り直します
 - 配布用フォルダ内で個別に編集したファイルは、再生成すると上書きされます
+- 配下外の既存ディレクトリは、明示フラグなしでは削除しません
+- `share_manifest.json` には配布元 PC の絶対パスを残さないようにしています

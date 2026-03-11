@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory)]
     [string]$ExcelPath,
     [string]$WorkbookJsonPath,
-    [string]$OutputDir
+    [string]$OutputDir,
+    [switch]$AllowWorkbookMacros
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -31,7 +32,7 @@ $workbook = $null
 $cellsBySheet = Group-CellsBySheet -Cells @($workbookData.cells)
 
 try {
-    $excel = New-ExcelApplication
+    $excel = New-ExcelApplication -AllowWorkbookMacros:$AllowWorkbookMacros
     $workbook = $excel.Workbooks.Open($resolvedExcelPath, 0, $true)
     $excel.CalculateFullRebuild()
 

@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string]$OutputDir
+    [string]$OutputDir,
+    [switch]$AllowOutsideDistribution,
+    [switch]$ForceCleanOutputDir
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -11,9 +13,20 @@ if (-not $OutputDir) {
     $OutputDir = Join-Path $projectRoot 'distribution\Excel2LLM_Share'
 }
 
-$resolvedOutputDir = [System.IO.Path]::GetFullPath($OutputDir)
+$distributionRoot = Join-Path $projectRoot 'distribution'
+$resolvedOutputDir = Get-NormalizedFullPath -Path $OutputDir
+$resolvedDistributionRoot = Get-NormalizedFullPath -Path $distributionRoot
+$isWithinDistribution = Test-PathWithinDirectory -Path $resolvedOutputDir -DirectoryPath $resolvedDistributionRoot
+
+if (-not $isWithinDistribution -and -not $AllowOutsideDistribution) {
+    throw "OutputDir outside distribution is blocked by default: $resolvedOutputDir. Use -AllowOutsideDistribution to continue."
+}
 
 if (Test-Path -LiteralPath $resolvedOutputDir) {
+    if (-not $isWithinDistribution -and -not $ForceCleanOutputDir) {
+        throw "Cleaning an existing OutputDir outside distribution requires -ForceCleanOutputDir: $resolvedOutputDir"
+    }
+
     Remove-Item -LiteralPath $resolvedOutputDir -Recurse -Force
 }
 
@@ -40,13 +53,14 @@ $filesToCopy = @(
     'run_rebuild.bat',
     'run_self_test.bat',
     'run_verify.bat',
-    'docs\FORMAT.md',
-    'docs\LLM_PROMPT_FORMATS.md',
-    'docs\MANUAL.md',
-    'docs\SHARE_PACKAGE.md',
-    'docs\USE_CASES.md',
-    'docs\USER_GUIDE.md',
-    'docs\VBA_HELPER.md',
+    'docs\README.md',
+    'docs\guides\MANUAL.md',
+    'docs\guides\SHARE_PACKAGE.md',
+    'docs\guides\USE_CASES.md',
+    'docs\guides\USER_GUIDE.md',
+    'docs\reference\FORMAT.md',
+    'docs\reference\LLM_PROMPT_FORMATS.md',
+    'docs\reference\VBA_HELPER.md',
     'output\.gitkeep',
     'samples\.gitkeep',
     'scripts\build_share_package.ps1',
@@ -80,8 +94,7 @@ foreach ($relativePath in $filesToCopy) {
 $manifest = [ordered]@{
     generated_at = Get-TimestampJst
     generator = 'Excel2LLM Share Package Builder'
-    source_project_root = $projectRoot
-    output_directory = $resolvedOutputDir
+    package_name = [string](Split-Path -Path $resolvedOutputDir -Leaf)
     file_count = $copiedFiles.Count
     files = @($copiedFiles)
 }

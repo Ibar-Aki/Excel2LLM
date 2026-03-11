@@ -2,13 +2,13 @@
 
 - 作成日: 2026-03-10 01:30 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-11
+- 更新日: 2026-03-12
 
 ## これは何か
 
 `Excel2LLM` は、Excel ブックをそのまま LLM に投げる代わりに、まず欠落の少ない JSON へ変換し、その後に LLM 向けのチャンクへ整形するためのツールです。
 
-最初に全体像をつかみたい場合は、先に `docs/MANUAL.md` を読むことを推奨します。この `USER_GUIDE.md` は、その次に見る詳しめの手引きです。
+最初に全体像をつかみたい場合は、先に `docs/guides/MANUAL.md` を読むことを推奨します。この `USER_GUIDE.md` は、その次に見る詳しめの手引きです。
 
 このツールが特に向いているケース:
 
@@ -31,6 +31,8 @@
 ```bat
 run_extract.bat "C:\Data\report.xlsx"
 ```
+
+既定では、Excel ブックマクロを無効化して開きます。
 
 生成される主なファイル:
 
@@ -168,6 +170,23 @@ run_extract.bat "C:\Data\book.xlsx" -CollectStyles
 - style 取得は遅くなりやすいです
 - まずは style なしで運用し、必要な案件だけ付けるのが安全です
 
+### `-RedactPaths`
+
+`workbook.json` や `manifest.json` に元 Excel の絶対パスを残したくないときに使います。
+
+```bat
+run_extract.bat "C:\Data\book.xlsx" -RedactPaths
+```
+
+### `-AllowWorkbookMacros`
+
+既定の安全設定を上書きし、信頼済みブックでだけマクロ実行を許容したいときに使います。
+
+```bat
+run_extract.bat "C:\Data\trusted.xlsm" -AllowWorkbookMacros
+run_verify.bat "C:\Data\trusted.xlsm" -AllowWorkbookMacros
+```
+
 ### `-Overwrite`
 
 逆生成先の `.xlsx` を上書きするときに使います。
@@ -301,7 +320,7 @@ Excel 再計算後との差分です。
 
 ## 推奨プロンプト
 
-用途別にそのまま使える詳しいテンプレートは `docs/LLM_PROMPT_FORMATS.md` を参照してください。ここでは短めの例だけ載せます。
+用途別にそのまま使える詳しいテンプレートは `docs/reference/LLM_PROMPT_FORMATS.md` を参照してください。ここでは短めの例だけ載せます。
 
 ### シート構造を理解させたい
 
@@ -356,6 +375,14 @@ run_extract.bat "C:\Data\book.xlsx" -CollectStyles
 - そのセルが `UsedRange` の外ではないか
 - 非表示でも実際に使用されているセルか
 - 数式結果だけでなく `formula` や `formula2` も見ているか
+
+### 配布用フォルダの再生成でエラーになる
+
+既定では `distribution\` 配下しか安全に削除しません。配下外を使う場合は、次のように明示します。
+
+```bat
+run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDistribution -ForceCleanOutputDir
+```
 
 ## 運用のおすすめ
 
