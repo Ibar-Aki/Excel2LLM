@@ -19,7 +19,7 @@
 
 ```bat
 run_extract.bat "C:\Data\estimate.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy sheet -MaxCells 250
+run_pack.bat "output\workbook.json" -ChunkBy sheet -MaxCells 250
 ```
 
 ### LLM への渡し方
@@ -46,7 +46,7 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy sheet -MaxC
 ```bat
 run_extract.bat "C:\Data\finance.xlsx"
 run_verify.bat "C:\Data\finance.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxCells 200
+run_pack.bat "output\workbook.json" -ChunkBy range -MaxCells 200
 ```
 
 ### ポイント
@@ -72,7 +72,7 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxC
 
 ```bat
 run_extract.bat "C:\Data\inventory.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxCells 150
+run_pack.bat "output\workbook.json" -ChunkBy range -MaxCells 150
 ```
 
 ### ポイント
@@ -98,7 +98,7 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxC
 
 ```bat
 run_extract.bat "C:\Data\operations.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy sheet -MaxCells 300
+run_pack.bat "output\workbook.json" -ChunkBy sheet -MaxCells 300
 ```
 
 ### 活用方法
@@ -123,7 +123,7 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy sheet -MaxC
 
 ```bat
 run_extract.bat "C:\Data\report.xlsx" -CollectStyles
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -IncludeStyles
+run_pack.bat "output\workbook.json" -IncludeStyles
 ```
 
 ### ポイント

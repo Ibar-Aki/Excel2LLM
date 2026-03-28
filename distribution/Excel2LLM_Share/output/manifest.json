@@ -1,0 +1,24 @@
+﻿{
+  "generated_at": "2026-03-28 14:54 JST",
+  "generator": "Excel2LLM PowerShell Extractor",
+  "status": "success",
+  "warnings": [],
+  "workbook_path": "C:\\Work_Codex\\Excel2LLM\\distribution\\Excel2LLM_Share\\samples\\sample.xlsx",
+  "output_directory": "C:\\Work_Codex\\Excel2LLM\\distribution\\Excel2LLM_Share\\output",
+  "source_sheet_count": 3,
+  "sheet_count": 3,
+  "cell_count": 5146,
+  "formula_count": 54,
+  "merged_range_count": 1,
+  "style_export_status": "skipped",
+  "verify_status": "success",
+  "sheet_filter": {
+    "include": [],
+    "exclude": [],
+    "selected": [
+      "Calc",
+      "Summary",
+      "WideTable"
+    ]
+  }
+}

@@ -22,11 +22,6 @@
 
 1. `reference/FORMAT.md`
 
-運用や保守を担当する人:
-
-1. `maintainers/OPERATIONS.md`
-2. `reports/SECURITY_FILE_OPS_REVIEW_20260312.md`
-
 ## 文書の役割
 
 - `guides/MANUAL.md`
@@ -43,7 +38,4 @@
   - LLM への指示テンプレート
 - `reference/VBA_HELPER.md`
   - VBA 補助の使い方
-- `maintainers/OPERATIONS.md`
-  - テスト、運用、保守手順
-- `reports/`
-  - 検証とレビューの記録
+

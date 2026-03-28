@@ -43,18 +43,6 @@ run_all.bat "C:\Data\report.xlsx" -Verify
 - `prompt bundle`
   - LLM に貼り付けるための指示文セット
 
-## 最短で進めるなら
-
-```bat
-run_all.bat "C:\Data\report.xlsx"
-```
-
-重要な資料なら:
-
-```bat
-run_all.bat "C:\Data\report.xlsx" -Verify
-```
-
 ## 基本の流れ
 
 まずは `run_all.bat` を使えば十分です。
