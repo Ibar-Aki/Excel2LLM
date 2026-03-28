@@ -20,6 +20,7 @@
 これらは開発や検証には必要ですが、配布先の利用者には必ずしも必要ではありません。
 
 そのため、配布時は必要な実行ファイル、スクリプト、最重要ドキュメントだけをまとめた専用フォルダを使います。
+利用者向けの手順は `GETTING_STARTED.md` に一本化し、配布用フォルダには不要なガイドを入れない方針です。
 
 ## 配布用フォルダの生成方法
 
@@ -78,18 +79,14 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 
 1. `README.md`
 2. `GETTING_STARTED.md`
-3. `docs\guides\MANUAL.md`
-4. `docs\guides\USER_GUIDE.md`
-5. `docs\reference\LLM_PROMPT_FORMATS.md`
+3. `docs\reference\LLM_PROMPT_FORMATS.md`
 
 役割の違い:
 
 - `README.md`
   - このフォルダで何ができるかを最初に把握する入口
 - `GETTING_STARTED.md`
-  - 最初の 1 回だけ、動作確認と最初の実行を順番に進める案内
-- `MANUAL.md`
-  - 2 回目以降に毎回見る短い早見表
+  - 利用者向けの手順をまとめた唯一の案内
 
 ## 注意
 

@@ -11,15 +11,16 @@ param(
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 if (-not $WorkbookJsonPath) {
-    $WorkbookJsonPath = Join-Path (Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output') 'workbook.json'
-}
-
-if (-not $OutputDir) {
-    $OutputDir = Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output'
+    $WorkbookJsonPath = Join-Path (Get-LatestOutputDirectory) 'workbook.json'
 }
 
 $resolvedExcelPath = Resolve-AbsolutePath -Path $ExcelPath
 $resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
+
+if (-not $OutputDir) {
+    $OutputDir = Split-Path -Path $resolvedWorkbookJsonPath -Parent
+}
+
 Ensure-Directory -Path $OutputDir
 
 $verifyReportPath = Join-Path $OutputDir 'verify_report.json'

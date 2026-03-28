@@ -58,7 +58,7 @@ function Get-NormalizedSheetFilterList {
 }
 
 if (-not $OutputDir) {
-    $OutputDir = Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output'
+    $OutputDir = Get-DefaultRunOutputDirectory -ExcelPath $ExcelPath
 }
 
 if ($SkipStyles) {
@@ -113,13 +113,39 @@ try {
     $globalMergedKeys = [System.Collections.Generic.HashSet[string]]::new()
     $availableSheets = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     $selectedSheets = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $selectedSheetOrder = [System.Collections.Generic.List[string]]::new()
 
     $totalFormulaCount = 0
     $totalCellCount = 0
 
+    for ($sheetIndex = 1; $sheetIndex -le $sourceSheetCount; $sheetIndex++) {
+        $sheet = $null
+        try {
+            $sheet = $workbook.Worksheets.Item($sheetIndex)
+            $sheetName = [string]$sheet.Name
+            [void]$availableSheets.Add($sheetName)
+
+            $isIncluded = (@($requestedSheets).Count -eq 0 -or $requestedSheets -contains $sheetName)
+            if ($isIncluded -and @($excludedSheets).Count -gt 0 -and ($excludedSheets -contains $sheetName)) {
+                $isIncluded = $false
+            }
+
+            if ($isIncluded) {
+                [void]$selectedSheetOrder.Add($sheetName)
+            }
+        }
+        finally {
+            if ($null -ne $sheet) {
+                Release-ComReference $sheet
+            }
+        }
+    }
+
+    $selectedSheetCount = $selectedSheetOrder.Count
+    $currentSheetNumber = 0
+
     foreach ($sheet in $workbook.Worksheets) {
         $sheetName = [string]$sheet.Name
-        [void]$availableSheets.Add($sheetName)
 
         $isIncluded = (@($requestedSheets).Count -eq 0 -or $requestedSheets -contains $sheetName)
         if ($isIncluded -and @($excludedSheets).Count -gt 0 -and ($excludedSheets -contains $sheetName)) {
@@ -131,6 +157,8 @@ try {
             continue
         }
 
+        $currentSheetNumber++
+        Write-Host ('[{0}/{1}] Sheet "{2}" を処理中...' -f $currentSheetNumber, $selectedSheetCount, $sheetName)
         [void]$selectedSheets.Add($sheetName)
         $sheetIndex = [int]$sheet.Index
         $sheetVisible = [int]$sheet.Visible
@@ -393,6 +421,7 @@ try {
     Write-JsonFile -Data $workbookPayload -Path $workbookJsonPath
     Write-JsonFile -Data $stylePayload -Path $stylesJsonPath
     Write-JsonFile -Data $manifestPayload -Path $manifestJsonPath
+    Set-LatestOutputDirectory -OutputDir $resolvedOutputDir
 
     $warningSummary = if ($warnings.Count -eq 0) { 'なし' } else { [string]$warnings.Count }
     Write-Host '=== Excel2LLM 抽出結果 ==='

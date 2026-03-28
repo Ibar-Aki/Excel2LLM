@@ -10,6 +10,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+if (-not $OutputDir) {
+    $OutputDir = Get-DefaultRunOutputDirectory -ExcelPath $ExcelPath
+}
+
 $warningCellThreshold = 1000000L
 $blockingCellThreshold = 5000000L
 $blockingSheetCellThreshold = 2000000L

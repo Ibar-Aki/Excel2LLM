@@ -5,6 +5,12 @@ function Get-ProjectRoot {
     return (Split-Path -Path $PSScriptRoot -Parent)
 }
 
+function Get-OutputRootDirectory {
+    $outputRoot = Join-Path (Get-ProjectRoot) 'output'
+    Ensure-Directory -Path $outputRoot
+    return $outputRoot
+}
+
 function Ensure-Directory {
     param(
         [Parameter(Mandatory)]
@@ -32,6 +38,27 @@ function Get-NormalizedFullPath {
     )
 
     return [System.IO.Path]::GetFullPath($Path)
+}
+
+function Convert-ToSafeDirectoryName {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name
+    )
+
+    $invalidCharacters = [System.IO.Path]::GetInvalidFileNameChars()
+    $sanitized = [string]$Name
+    foreach ($character in $invalidCharacters) {
+        $sanitized = $sanitized.Replace([string]$character, '_')
+    }
+
+    $sanitized = $sanitized -replace '\s+', '_'
+    $sanitized = $sanitized.Trim(' ', '.')
+    if ([string]::IsNullOrWhiteSpace($sanitized)) {
+        return 'workbook'
+    }
+
+    return $sanitized
 }
 
 function Write-JsonFile {
@@ -140,6 +167,53 @@ function Convert-FormulaValue {
 
 function Get-TimestampJst {
     return (Get-Date).ToString("yyyy-MM-dd HH:mm 'JST'")
+}
+
+function Get-TimestampJstForPath {
+    return (Get-Date).ToString('yyyyMMdd-HHmmss')
+}
+
+function Get-DefaultRunOutputDirectory {
+    param(
+        [Parameter(Mandatory)]
+        [string]$ExcelPath
+    )
+
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($ExcelPath)
+    $safeBaseName = Convert-ToSafeDirectoryName -Name $baseName
+    return Join-Path (Get-OutputRootDirectory) ('{0}_{1}' -f $safeBaseName, (Get-TimestampJstForPath))
+}
+
+function Get-LatestOutputDirectoryPointerPath {
+    return Join-Path (Get-OutputRootDirectory) 'latest_run.txt'
+}
+
+function Set-LatestOutputDirectory {
+    param(
+        [Parameter(Mandatory)]
+        [string]$OutputDir
+    )
+
+    $resolvedOutputDir = Get-NormalizedFullPath -Path $OutputDir
+    [System.IO.File]::WriteAllText((Get-LatestOutputDirectoryPointerPath), $resolvedOutputDir, [System.Text.Encoding]::UTF8)
+}
+
+function Get-LatestOutputDirectory {
+    $pointerPath = Get-LatestOutputDirectoryPointerPath
+    if (-not (Test-Path -LiteralPath $pointerPath)) {
+        throw '最新の実行結果が見つかりません。先に run_all.bat または run_extract.bat を実行してください。'
+    }
+
+    $resolvedOutputDir = [string]([System.IO.File]::ReadAllText($pointerPath, [System.Text.Encoding]::UTF8)).Trim()
+    if ([string]::IsNullOrWhiteSpace($resolvedOutputDir)) {
+        throw 'latest_run.txt の内容が空です。先に run_all.bat または run_extract.bat を実行してください。'
+    }
+
+    if (-not (Test-Path -LiteralPath $resolvedOutputDir)) {
+        throw ("最新の出力フォルダが存在しません: {0}" -f $resolvedOutputDir)
+    }
+
+    return (Get-NormalizedFullPath -Path $resolvedOutputDir)
 }
 
 function Write-NextStepBlock {

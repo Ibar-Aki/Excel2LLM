@@ -12,14 +12,6 @@ param(
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
-if (-not $OutputPath) {
-    $OutputPath = Join-Path (Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output') 'llm_package.jsonl'
-}
-
-if (-not $StylesJsonPath) {
-    $StylesJsonPath = Join-Path (Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output') 'styles.json'
-}
-
 function Get-ChunkRange {
     param(
         [Parameter(Mandatory)]
@@ -136,6 +128,16 @@ function Add-ChunkRecord {
 
 try {
     $resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
+    $workbookOutputDir = Split-Path -Path $resolvedWorkbookJsonPath -Parent
+
+    if (-not $OutputPath) {
+        $OutputPath = Join-Path $workbookOutputDir 'llm_package.jsonl'
+    }
+
+    if (-not $StylesJsonPath) {
+        $StylesJsonPath = Join-Path $workbookOutputDir 'styles.json'
+    }
+
     $workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
     $styleLookup = @{}
     $cellsBySheet = Group-CellsBySheet -Cells @($workbookData.cells)

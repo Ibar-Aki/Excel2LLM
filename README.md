@@ -7,9 +7,11 @@
 あなたの Excel ファイルを、ChatGPT などの LLM に渡しやすい形式へ変換するツールです。
 Excel を開いて手でコピペしなくても、コマンド 1 つで必要なデータを取り出せます。
 
+利用者向けの手順は `GETTING_STARTED.md` に統合しました。
+
 ## 3ステップで使う
 
-### 1. まとめて実行する
+### 1. Excel を `run_all.bat` にドラッグアンドドロップする
 
 ```bat
 run_all.bat "C:\Data\book.xlsx"
@@ -29,23 +31,17 @@ run_prompt_bundle.bat -Scenario general
 
 主に使う出力:
 
-- `output\preflight_report.json`
-- `output\workbook.json`
-- `output\llm_package.jsonl`
-- `output\verify_report.json`
+- `output\<ファイル名_実行日時>\preflight_report.json`
+- `output\<ファイル名_実行日時>\workbook.json`
+- `output\<ファイル名_実行日時>\llm_package.jsonl`
+- `output\<ファイル名_実行日時>\verify_report.json`
 
 ## このあと読む文書
 
 - `GETTING_STARTED.md`
-  - 初回の動作確認を順番に進めたいときに読む 1 ページ
-- `docs/guides/MANUAL.md`
-  - 毎回使う短い早見表
-- `docs/guides/USER_GUIDE.md`
-  - 詳しい手順、オプション、出力の見方、トラブル対応
+  - 利用者向けの手順をまとめた唯一の案内
 - `docs/reference/LLM_PROMPT_FORMATS.md`
   - LLM へ渡すときの用途別テンプレート
-- `docs/guides/SHARE_PACKAGE.md`
-  - 他の人へ渡すための配布用フォルダの作り方
 - `docs/README.md`
   - 文書全体の案内
 
@@ -55,10 +51,10 @@ run_prompt_bundle.bat -Scenario general
 run_all.bat "C:\path\to\book.xlsx"
 run_extract.bat "C:\path\to\book.xlsx"
 run_preflight.bat "C:\path\to\book.xlsx"
-run_pack.bat "output\workbook.json"
+run_pack.bat "output\<実行結果フォルダ>\workbook.json"
 run_prompt_bundle.bat -Scenario general
-run_verify.bat "C:\path\to\book.xlsx" -WorkbookJsonPath "output\workbook.json"
-run_rebuild.bat "output\workbook.json"
+run_verify.bat "C:\path\to\book.xlsx" -WorkbookJsonPath "output\<実行結果フォルダ>\workbook.json"
+run_rebuild.bat "output\<実行結果フォルダ>\workbook.json"
 ```
 
 各 `run_*.bat` は、引数なし、`-h`、`--help`、`/?` のときに使い方を表示します。

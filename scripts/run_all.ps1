@@ -15,11 +15,13 @@ param(
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
+
 try {
     $projectRoot = Get-ProjectRoot
     $resolvedExcelPath = Resolve-AbsolutePath -Path $ExcelPath
     if (-not $OutputDir) {
-        $OutputDir = Join-Path $projectRoot 'output'
+        $OutputDir = Get-DefaultRunOutputDirectory -ExcelPath $resolvedExcelPath
     }
     $resolvedOutputDir = Get-NormalizedFullPath -Path $OutputDir
     $workbookJsonPath = Join-Path $resolvedOutputDir 'workbook.json'
@@ -54,11 +56,13 @@ try {
 
     & (Join-Path $PSScriptRoot 'pack_for_llm.ps1') -WorkbookJsonPath $workbookJsonPath -OutputPath $jsonlPath
 
+    $sw.Stop()
     Write-Host '=== 一括実行結果 ==='
     Write-Host ('  対象ファイル: {0}' -f [System.IO.Path]::GetFileName($resolvedExcelPath))
     Write-Host ('  workbook.json: {0}' -f $workbookJsonPath)
     Write-Host ('  llm_package.jsonl: {0}' -f $jsonlPath)
     Write-Host ('  verify 実行: {0}' -f $(if ($Verify) { 'あり' } else { 'なし' }))
+    Write-Host ('  処理時間: {0:hh\:mm\:ss}' -f $sw.Elapsed)
     Write-NextStepBlock -Steps @(
         ('LLM に渡す対象: {0}' -f $jsonlPath),
         ('必要なら run_prompt_bundle.bat -Scenario general を実行する')

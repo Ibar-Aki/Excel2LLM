@@ -4,95 +4,130 @@
 - 作成者: Codex (GPT-5)
 - 更新日: 2026-03-28
 
-## 動かすために必要なもの
+## この文書だけ読めば使えます
 
-- Windows 10 / 11
-- Microsoft 365 Excel（デスクトップ版）
-- PowerShell（Windows に標準搭載）
+利用者向けの手順は、この文書に統合しました。
+まずはこの文書のとおりに進めてください。
 
-## この文書の役割
+## 使う前に必要なもの
 
-この文書は、配布フォルダを受け取った人が最初の 1 回だけ読むための案内です。
-毎回の実行で参照する短い早見表は `docs\guides\MANUAL.md` にまとめています。
+| 項目 | 内容 |
+| --- | --- |
+| OS | Windows 10 / 11 |
+| Excel | Microsoft 365 Excel（デスクトップ版） |
+| 追加インストール | 不要 |
+| 主な使い方 | `run_all.bat` へ Excel をドラッグアンドドロップ |
 
-## 最初にやること
+## まずやること
 
-1. このフォルダをそのまま任意の場所へ置く
-2. 動作確認をする
+| 手順 | 何をするか | 補足 |
+| --- | --- | --- |
+| 1 | 配布フォルダをそのまま任意の場所へ置く | フォルダ名は変えてもかまいません |
+| 2 | `run_self_test.bat` を実行する | 最初の 1 回だけで十分です |
+| 3 | `セルフテストが正常終了しました。` と出ることを確認する | これで使える状態です |
+| 4 | 自分の Excel を `run_all.bat` にドラッグアンドドロップする | これが基本の使い方です |
 
-```bat
-run_self_test.bat
-```
+## 基本の使い方
 
-`セルフテストが正常終了しました。` と表示されたら成功です。
+### いちばん簡単な使い方
 
-3. 自分の Excel で試す
+1. 処理したい Excel ファイルを見つける
+2. その Excel ファイルを `run_all.bat` の上へドラッグアンドドロップする
+3. 処理が終わるまで待つ
+4. 画面に出た出力先フォルダを開く
+
+コマンドで実行する場合:
 
 ```bat
 run_all.bat "C:\Data\book.xlsx"
 ```
 
-`run_all` は抽出前に自動で `preflight` を行います。重すぎる Excel や破損疑いのある Excel はここで止まります。
+重要な資料で、Excel との突き合わせもしたい場合:
 
-実行後、`output` フォルダに次ができていれば成功です。
+```bat
+run_all.bat "C:\Data\book.xlsx" -Verify
+```
 
-- `workbook.json`
-  - Excel 全体の内容を保存したファイル
-- `llm_package.jsonl`
-  - LLM に渡せるサイズへ分割したファイル
+## 実行すると何が作られるか
 
-💡 ヒント: Excel ファイルを `run_all.bat` にドラッグ＆ドロップしても実行できます。
+実行するたびに、`output` の中へ **新しい実行結果フォルダ** が作られます。
+フォルダ名は **ファイル名 + 実行日時** です。
 
-## 何ができるか
+例:
 
-- Excel を `workbook.json` に変換する
-- LLM に渡しやすい `llm_package.jsonl` を作る
-- 必要なら `verify_report.json` で Excel と突き合わせる
+```text
+output\estimate_20260328-143500
+```
+
+同じ Excel を何回実行しても、前回結果を上書きしにくい作りです。
+
+## 出力ファイル一覧
+
+| ファイル / フォルダ | いつできるか | 意味 |
+| --- | --- | --- |
+| `preflight_report.json` | `run_all` / `run_extract` / `run_preflight` | 事前チェック結果 |
+| `workbook.json` | `run_all` / `run_extract` | Excel 全体を保存した正本 |
+| `styles.json` | `-CollectStyles` を付けたとき | 色や罫線などの補助情報 |
+| `manifest.json` | `run_all` / `run_extract` | 抽出結果の要約 |
+| `llm_package.jsonl` | `run_all` / `run_pack` | LLM に渡しやすい分割済みデータ |
+| `verify_report.json` | `-Verify` または `run_verify` | Excel との突き合わせ結果 |
+| `prompt_bundle\` | `run_prompt_bundle` | LLM に貼り付ける指示文セット |
+| `rebuilt\` | `run_rebuild` | `workbook.json` から作り直した Excel |
+
+## 最初に見るべきもの
+
+| 見るもの | 何を見るか |
+| --- | --- |
+| `workbook.json` | Excel の内容が取れているか |
+| `llm_package.jsonl` | LLM に渡すデータができているか |
+| `verify_report.json` | 差分があるかどうか |
+| `preflight_report.json` | 重すぎる・壊れているなどで止まっていないか |
 
 ## よく出る言葉
 
-- `preflight`
-  - Excel を開く前に行う事前チェックです
-- `workbook.json`
-  - Excel の全シート・全セルの内容を保存したファイルです
-- `JSONL`
-  - 1 行に 1 つずつデータを入れた軽量形式です
-- `チャンク`
-  - LLM に一度に渡せるサイズに分割したデータのかたまりです
-- `prompt bundle`
-  - LLM に貼り付けるための指示文セットです
+| 用語 | 意味 |
+| --- | --- |
+| `preflight` | Excel を開く前の事前チェック |
+| `workbook.json` | Excel 全体の内容を保存したファイル |
+| `JSONL` | 1 行に 1 件ずつデータが入る形式 |
+| `チャンク` | LLM に一度に渡すデータのかたまり |
+| `prompt bundle` | LLM に貼り付ける指示文セット |
+| `verify` | 抽出結果と Excel を突き合わせる確認 |
 
-## まず見るファイル
+## 使い分け表
 
-- `output\workbook.json`
-- `output\preflight_report.json`
-- `output\llm_package.jsonl`
-- `output\verify_report.json`
+| やりたいこと | 使うもの |
+| --- | --- |
+| まず普通に使いたい | `run_all.bat` にドラッグアンドドロップ |
+| 重要な Excel を慎重に扱いたい | `run_all.bat` + `-Verify` |
+| 危険な Excel か先に確認したい | `run_preflight.bat` |
+| LLM に貼り付ける文を作りたい | `run_prompt_bundle.bat` |
+| `workbook.json` から Excel を作り直したい | `run_rebuild.bat` |
 
-## 便利なコマンド
+## LLM に渡すまでの流れ
 
-```bat
-run_all.bat "C:\Data\book.xlsx"
-run_all.bat "C:\Data\book.xlsx" -Verify
-run_preflight.bat "C:\Data\book.xlsx"
-run_prompt_bundle.bat -Scenario general
-```
+| 手順 | 何をするか |
+| --- | --- |
+| 1 | `run_all.bat` で `llm_package.jsonl` を作る |
+| 2 | `llm_package.jsonl` をテキストエディタで開く |
+| 3 | 必要な行だけをコピーする |
+| 4 | ChatGPT などへ貼り付ける |
+| 5 | 必要なら `run_prompt_bundle.bat` で指示文も作る |
 
-## LLM に渡すには
-
-1. `output\llm_package.jsonl` をテキストエディタで開く
-2. 必要な行だけを選んでコピーする
-3. ChatGPT などに貼り付けて質問する
-
-詳しいテンプレートは `docs\reference\LLM_PROMPT_FORMATS.md` にあります。
+LLM 向けの指示文例は `docs\reference\LLM_PROMPT_FORMATS.md` にあります。
 
 ## 困ったとき
 
-1. Excel を閉じる
-2. もう一度コマンドを実行する
-3. まだダメなら `run_self_test.bat`
+| 状況 | まずやること |
+| --- | --- |
+| うまく動かない | Excel を閉じて、もう一度実行する |
+| 途中で止まった | `preflight_report.json` を見る |
+| 差分が出た | `verify_report.json` を見る |
+| まだだめ | `run_self_test.bat` を実行する |
 
-詳しい手順:
+## 補足
 
-- `docs\guides\MANUAL.md`
-- `docs\guides\USER_GUIDE.md`
+- `run_all.bat` は、抽出前に自動で事前チェックを行います
+- 重すぎる Excel や壊れている疑いがある Excel は、Excel を開く前に停止します
+- `run_prompt_bundle.bat` は、直前の実行結果フォルダを自動で使います
+- 絶対パスを減らしたい場合は `-RedactPaths` を使います

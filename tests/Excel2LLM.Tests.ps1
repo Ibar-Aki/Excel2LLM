@@ -36,7 +36,7 @@ Describe 'Excel2LLM integration tests' {
             $noArgOutput = & cmd.exe /d /c """$($batCase.Path)""" 2>&1 | Out-String
             $LASTEXITCODE | Should Be 1
             $noArgOutput | Should Match $usagePattern
-            $noArgOutput | Should Match 'docs\\guides\\'
+            $noArgOutput | Should Match 'GETTING_STARTED\.md'
 
             foreach ($helpSwitch in @('-h', '--help', '/?')) {
                 $helpOutput = & cmd.exe /d /c """$($batCase.Path)"" $helpSwitch" 2>&1 | Out-String
@@ -267,6 +267,74 @@ Describe 'Excel2LLM integration tests' {
         (Test-Path -LiteralPath (Join-Path $outputDir 'prompt_bundle\prompt_bundle_manifest.json')) | Should Be $true
         $promptOutput | Should Match '=== 指示文セット作成結果 ==='
         $promptOutput | Should Match '=== 次のおすすめ ==='
+    }
+
+    It 'stores default extraction output in a timestamped run folder and records the latest run path' {
+        $workspace = New-TestWorkspace -Name 'default-output-layout'
+        $samplesDir = Join-Path $workspace 'samples'
+        $bookPath = Join-Path $samplesDir 'sample.xlsx'
+        $latestPointerPath = Join-Path $projectRoot 'output\latest_run.txt'
+        $previousPointer = if (Test-Path -LiteralPath $latestPointerPath) { Get-Content -LiteralPath $latestPointerPath -Raw } else { $null }
+        $createdRunDir = $null
+
+        try {
+            & $sampleScript -OutputDir $samplesDir
+            & $extractScript -ExcelPath $bookPath
+
+            $createdRunDir = ((Get-Content -LiteralPath $latestPointerPath -Raw).Trim())
+            $createdRunDir | Should Match 'sample_\d{8}-\d{6}$'
+            (Test-Path -LiteralPath (Join-Path $createdRunDir 'workbook.json')) | Should Be $true
+            (Test-Path -LiteralPath (Join-Path $createdRunDir 'manifest.json')) | Should Be $true
+        }
+        finally {
+            if ($createdRunDir -and (Test-Path -LiteralPath $createdRunDir)) {
+                Remove-Item -LiteralPath $createdRunDir -Recurse -Force
+            }
+
+            if ($null -eq $previousPointer) {
+                if (Test-Path -LiteralPath $latestPointerPath) {
+                    Remove-Item -LiteralPath $latestPointerPath -Force
+                }
+            }
+            else {
+                Set-Content -LiteralPath $latestPointerPath -Value $previousPointer -NoNewline
+            }
+        }
+    }
+
+    It 'uses the latest run folder by default when creating prompt bundles' {
+        $workspace = New-TestWorkspace -Name 'prompt-bundle-latest'
+        $samplesDir = Join-Path $workspace 'samples'
+        $outputDir = Join-Path $workspace 'run-output'
+        $bookPath = Join-Path $samplesDir 'sample.xlsx'
+        $latestPointerPath = Join-Path $projectRoot 'output\latest_run.txt'
+        $previousPointer = if (Test-Path -LiteralPath $latestPointerPath) { Get-Content -LiteralPath $latestPointerPath -Raw } else { $null }
+
+        try {
+            & $sampleScript -OutputDir $samplesDir
+            & $extractScript -ExcelPath $bookPath -OutputDir $outputDir
+            & $packScript -WorkbookJsonPath (Join-Path $outputDir 'workbook.json') -OutputPath (Join-Path $outputDir 'llm_package.jsonl')
+
+            Push-Location $workspace
+            try {
+                & cmd.exe /d /c """$runPromptBundleBat"" -Scenario general" | Out-Null
+            }
+            finally {
+                Pop-Location
+            }
+
+            (Test-Path -LiteralPath (Join-Path $outputDir 'prompt_bundle\prompt_bundle_manifest.json')) | Should Be $true
+        }
+        finally {
+            if ($null -eq $previousPointer) {
+                if (Test-Path -LiteralPath $latestPointerPath) {
+                    Remove-Item -LiteralPath $latestPointerPath -Force
+                }
+            }
+            else {
+                Set-Content -LiteralPath $latestPointerPath -Value $previousPointer -NoNewline
+            }
+        }
     }
 
     It 'prints numbered Japanese recovery steps on command failure' {
@@ -633,6 +701,9 @@ Describe 'Excel2LLM integration tests' {
         (Test-Path -LiteralPath (Join-Path $outsideDir 'run_all.bat')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'run_preflight.bat')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'run_prompt_bundle.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'docs\guides\SHARE_PACKAGE.md')) | Should Be $false
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'docs\guides\MANUAL.md')) | Should Be $false
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'docs\guides\USER_GUIDE.md')) | Should Be $false
     }
 
     It 'runs domain acceptance workflow for accounting original sample' {

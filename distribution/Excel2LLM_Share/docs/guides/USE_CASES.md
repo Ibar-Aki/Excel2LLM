@@ -2,10 +2,13 @@
 
 - 作成日: 2026-03-10 01:30 JST
 - 作成者: Codex (GPT-5)
+- 更新日: 2026-03-28
 
 ## 目的別の使い方
 
 このドキュメントでは、`Excel2LLM` を実務でどう使うかを具体例でまとめます。
+
+この文書では、`run_all.bat` 実行後に作られる最新の実行結果フォルダを `output\<実行結果フォルダ>\` と表記します。
 
 ## 事例 1: 見積もり表の内容を LLM に説明させる
 
@@ -18,8 +21,7 @@
 ### 実行手順
 
 ```bat
-run_extract.bat "C:\Data\estimate.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy sheet -MaxCells 250
+run_all.bat "C:\Data\estimate.xlsx"
 ```
 
 ### LLM への渡し方
@@ -44,9 +46,8 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy sheet -MaxC
 ### 実行手順
 
 ```bat
-run_extract.bat "C:\Data\finance.xlsx"
-run_verify.bat "C:\Data\finance.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxCells 200
+run_all.bat "C:\Data\finance.xlsx" -Verify
+run_pack.bat "output\<実行結果フォルダ>\workbook.json" -ChunkBy range -MaxCells 200
 ```
 
 ### ポイント
@@ -71,8 +72,8 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxC
 ### 実行手順
 
 ```bat
-run_extract.bat "C:\Data\inventory.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxCells 150
+run_all.bat "C:\Data\inventory.xlsx"
+run_pack.bat "output\<実行結果フォルダ>\workbook.json" -ChunkBy range -MaxCells 150
 ```
 
 ### ポイント
@@ -97,8 +98,7 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxC
 ### 実行手順
 
 ```bat
-run_extract.bat "C:\Data\operations.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy sheet -MaxCells 300
+run_all.bat "C:\Data\operations.xlsx"
 ```
 
 ### 活用方法
@@ -122,8 +122,8 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy sheet -MaxC
 ### 実行手順
 
 ```bat
-run_extract.bat "C:\Data\report.xlsx" -CollectStyles
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -IncludeStyles
+run_all.bat "C:\Data\report.xlsx" -CollectStyles
+run_pack.bat "output\<実行結果フォルダ>\workbook.json" -IncludeStyles
 ```
 
 ### ポイント
@@ -148,8 +148,7 @@ run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -IncludeStyles
 ### 実行手順
 
 ```bat
-run_extract.bat "C:\Data\volatile.xlsx"
-run_verify.bat "C:\Data\volatile.xlsx"
+run_all.bat "C:\Data\volatile.xlsx" -Verify
 ```
 
 ### 見るべきファイル
@@ -189,6 +188,7 @@ run_verify.bat "C:\Data\volatile.xlsx"
 ## どの事例でも共通の運用
 
 - 最初は `workbook.json` を正本として保存する
+- まずは `run_all.bat` で `workbook.json` と `llm_package.jsonl` をまとめて作る
 - LLM に渡すのは `llm_package.jsonl` の必要チャンクだけにする
-- 重要なブックは `run_verify.bat` を先に通す
+- 重要なブックは `run_all.bat -Verify` を使う
 - style は本当に必要な案件だけ追加する

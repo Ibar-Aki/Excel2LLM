@@ -12,15 +12,30 @@ param(
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 try {
-    $projectRoot = Get-ProjectRoot
+    $latestOutputDir = $null
     if (-not $WorkbookJsonPath) {
-        $WorkbookJsonPath = Join-Path (Join-Path $projectRoot 'output') 'workbook.json'
+        $latestOutputDir = Get-LatestOutputDirectory
+        $WorkbookJsonPath = Join-Path $latestOutputDir 'workbook.json'
     }
     if (-not $JsonlPath) {
-        $JsonlPath = Join-Path (Join-Path $projectRoot 'output') 'llm_package.jsonl'
+        if (-not [string]::IsNullOrWhiteSpace($WorkbookJsonPath)) {
+            $JsonlPath = Join-Path (Split-Path -Path $WorkbookJsonPath -Parent) 'llm_package.jsonl'
+        }
+        else {
+            if ($null -eq $latestOutputDir) {
+                $latestOutputDir = Get-LatestOutputDirectory
+            }
+            $JsonlPath = Join-Path $latestOutputDir 'llm_package.jsonl'
+        }
     }
     if (-not $OutputDir) {
-        $OutputDir = Join-Path (Join-Path $projectRoot 'output') 'prompt_bundle'
+        $promptSourceDir = if (-not [string]::IsNullOrWhiteSpace($WorkbookJsonPath)) {
+            Split-Path -Path $WorkbookJsonPath -Parent
+        }
+        else {
+            Split-Path -Path $JsonlPath -Parent
+        }
+        $OutputDir = Join-Path $promptSourceDir 'prompt_bundle'
     }
 
     & (Join-Path $PSScriptRoot 'export_prompt_bundle.ps1') `

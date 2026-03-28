@@ -84,11 +84,12 @@ function Get-ResolvedStylesJsonPath {
 function Get-DefaultOutputPath {
     param(
         [Parameter(Mandatory)]
+        [string]$ResolvedWorkbookJsonPath,
+        [Parameter(Mandatory)]
         $WorkbookMetadata
     )
 
-    $projectRoot = Get-ProjectRoot
-    $rebuiltDir = Join-Path (Join-Path $projectRoot 'output') 'rebuilt'
+    $rebuiltDir = Join-Path (Split-Path -Path $ResolvedWorkbookJsonPath -Parent) 'rebuilt'
     Ensure-Directory -Path $rebuiltDir
 
     $baseName = [System.IO.Path]::GetFileNameWithoutExtension([string]$WorkbookMetadata.name)
@@ -356,7 +357,7 @@ try {
     Assert-RebuildInput -WorkbookData $workbookData
 
     if (-not $OutputPath) {
-        $OutputPath = Get-DefaultOutputPath -WorkbookMetadata $workbookData.workbook
+        $OutputPath = Get-DefaultOutputPath -ResolvedWorkbookJsonPath $resolvedWorkbookJsonPath -WorkbookMetadata $workbookData.workbook
     }
 
     $resolvedOutputPath = [System.IO.Path]::GetFullPath($OutputPath)
