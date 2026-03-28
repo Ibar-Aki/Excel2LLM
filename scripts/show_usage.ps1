@@ -8,14 +8,20 @@ param(
 $usageMap = @{
     Excel2LLM = @(
         '使い方: Excel2LLM.bat "C:\path\to\book.xlsx" [run_all のオプション]'
+        '       Excel2LLM.bat -Extract "C:\path\to\book.xlsx" [extract のオプション]'
+        '       Excel2LLM.bat -Verify "C:\path\to\book.xlsx" [verify のオプション]'
+        '       Excel2LLM.bat -Preflight "C:\path\to\book.xlsx" [preflight のオプション]'
+        '       Excel2LLM.bat -Pack "output\<実行結果フォルダ>\workbook.json" [pack のオプション]'
+        '       Excel2LLM.bat -Rebuild "output\<実行結果フォルダ>\workbook.json" [rebuild のオプション]'
         '       Excel2LLM.bat -PromptBundle [オプション]'
         '       Excel2LLM.bat -SelfTest'
         ''
         '主な使い方:'
         '  - Excel ファイルをドラッグアンドドロップすると、そのまま一括実行します'
-        '  - 引数なしで開くと、簡単なメニューを表示します'
-        '  - PromptBundle と SelfTest もここから呼べます'
-        '  - 詳細機能は tools\advanced\ の bat を使います'
+        '  - 引数なしで開くと、verify、復元、style 抽出も選べるメニューを表示します'
+        '  - -CollectStyles を付けた抽出や、単独 verify、復元もここから呼べます'
+        '  - 実行後は画面を閉じず、結果を確認してからキーを押して閉じます'
+        '  - 自動実行で停止させたくない場合は -NoPause を付けます'
         ''
         '詳細: GETTING_STARTED.md'
     )

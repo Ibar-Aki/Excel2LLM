@@ -717,7 +717,7 @@ try {
 
     Write-NextStepBlock -Steps @(
         ('復元した Excel を開いて確認する: {0}' -f $resolvedOutputPath),
-        ('必要なら tools\advanced\run_extract.bat "{0}"' -f $resolvedOutputPath)
+        ('必要なら Excel2LLM.bat -Extract "{0}"' -f $resolvedOutputPath)
     )
     Write-Host ('復元した Excel     -> {0}' -f $resolvedOutputPath)
     Write-Host ('rebuild_report.json -> {0}' -f $rebuildReportPath)

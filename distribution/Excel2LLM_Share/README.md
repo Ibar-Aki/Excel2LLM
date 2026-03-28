@@ -29,6 +29,18 @@ Excel2LLM.bat "C:\Data\book.xlsx" -Verify
 Excel2LLM.bat -PromptBundle -Scenario general
 ```
 
+処理が終わっても画面は自動では閉じません。
+結果を確認してからキーを押して閉じます。
+
+## まず覚えること
+
+| 覚えるもの | 意味 |
+| --- | --- |
+| `Excel2LLM.bat` | 利用者向けの入口はこれだけです |
+| ドラッグアンドドロップ | 一番簡単な使い方です |
+| `-Verify` | 重要な資料の確認を追加したいときに使います |
+| `-PromptBundle` | LLM に貼り付ける指示文セットを作るときに使います |
+
 主に使う出力:
 
 - `output\<ファイル名_実行日時>\preflight_report.json`
@@ -50,10 +62,16 @@ Excel2LLM.bat -PromptBundle -Scenario general
 ```bat
 Excel2LLM.bat "C:\path\to\book.xlsx"
 Excel2LLM.bat "C:\path\to\book.xlsx" -Verify
+Excel2LLM.bat -Extract "C:\path\to\book.xlsx" -CollectStyles
+Excel2LLM.bat -Verify "C:\path\to\book.xlsx" -WorkbookJsonPath "output\run\workbook.json"
+Excel2LLM.bat -Rebuild "output\run\workbook.json" -StylesJsonPath "output\run\styles.json"
+Excel2LLM.bat -Pack "output\run\workbook.json" -ChunkBy range -MaxCells 300
 Excel2LLM.bat -PromptBundle -Scenario general
+Excel2LLM.bat -SelfTest
 ```
 
-詳細機能を直接使いたい場合は `tools\user\` と `tools\advanced\` の `bat` を使えます。
+通常利用では `tools\user\` や `tools\advanced\` を開く必要はありません。
+迷ったら `GETTING_STARTED.md` と `Excel2LLM.bat` だけ見れば使えます。
 
 ## できること
 

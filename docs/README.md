@@ -9,7 +9,7 @@
 初めて使う人:
 
 1. `..\GETTING_STARTED.md`
-2. `reference/LLM_PROMPT_FORMATS.md`
+2. 必要になったら `reference/LLM_PROMPT_FORMATS.md`
 
 他の人へ渡したい人:
 
@@ -23,6 +23,8 @@
 
 - `..\GETTING_STARTED.md`
   - `Excel2LLM.bat` を入口にした利用者向け手順
+  - verify、style 抽出、復元、prompt bundle まで 1 本で実行する前提
+  - 非 IT 利用者は、まずこれだけ見ればよい
 - `guides/USE_CASES.md`
   - 実務での使い方と活用例
 - `reference/FORMAT.md`

@@ -47,7 +47,7 @@ Excel2LLM.bat "C:\Data\estimate.xlsx"
 
 ```bat
 Excel2LLM.bat "C:\Data\finance.xlsx" -Verify
-tools\advanced\run_pack.bat "output\<実行結果フォルダ>\workbook.json" -ChunkBy range -MaxCells 200
+Excel2LLM.bat -Pack "output\<実行結果フォルダ>\workbook.json" -ChunkBy range -MaxCells 200
 ```
 
 ### ポイント
@@ -73,7 +73,7 @@ tools\advanced\run_pack.bat "output\<実行結果フォルダ>\workbook.json" -C
 
 ```bat
 Excel2LLM.bat "C:\Data\inventory.xlsx"
-tools\advanced\run_pack.bat "output\<実行結果フォルダ>\workbook.json" -ChunkBy range -MaxCells 150
+Excel2LLM.bat -Pack "output\<実行結果フォルダ>\workbook.json" -ChunkBy range -MaxCells 150
 ```
 
 ### ポイント
@@ -122,8 +122,8 @@ Excel2LLM.bat "C:\Data\operations.xlsx"
 ### 実行手順
 
 ```bat
-Excel2LLM.bat "C:\Data\report.xlsx" -CollectStyles
-tools\advanced\run_pack.bat "output\<実行結果フォルダ>\workbook.json" -IncludeStyles
+Excel2LLM.bat -Extract "C:\Data\report.xlsx" -CollectStyles
+Excel2LLM.bat -Pack "output\<実行結果フォルダ>\workbook.json" -IncludeStyles
 ```
 
 ### ポイント

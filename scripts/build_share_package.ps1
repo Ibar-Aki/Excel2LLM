@@ -60,6 +60,7 @@ $filesToCopy = @(
     'scripts\excel_verify.ps1',
     'scripts\export_prompt_bundle.ps1',
     'scripts\extract_excel.ps1',
+    'scripts\invoke_excel2llm.ps1',
     'scripts\launch_menu.ps1',
     'scripts\pack_for_llm.ps1',
     'scripts\preflight_excel.ps1',

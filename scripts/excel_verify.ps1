@@ -150,13 +150,13 @@ try {
     Write-Host ('  詳細:        {0}' -f $verifyReportPath)
     if ($mismatches.Count -eq 0 -and $warnings.Count -eq 0) {
         Write-NextStepBlock -Steps @(
-            ('tools\advanced\run_pack.bat "{0}"' -f $resolvedWorkbookJsonPath)
+            ('Excel2LLM.bat -Pack "{0}"' -f $resolvedWorkbookJsonPath)
         )
     }
     else {
         Write-NextStepBlock -Steps @(
             ('verify_report.json を確認する: {0}' -f $verifyReportPath),
-            ('差分解消後に tools\advanced\run_pack.bat "{0}"' -f $resolvedWorkbookJsonPath)
+            ('差分解消後に Excel2LLM.bat -Pack "{0}"' -f $resolvedWorkbookJsonPath)
         )
     }
 }

@@ -20,6 +20,32 @@ $runRebuildBat = Join-Path $projectRoot 'tools\advanced\run_rebuild.bat'
 $runAllBat = Join-Path $projectRoot 'tools\user\run_all.bat'
 $runPromptBundleBat = Join-Path $projectRoot 'tools\user\run_prompt_bundle.bat'
 
+function Convert-ToCmdArgument {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Value
+    )
+
+    return '"' + $Value.Replace('"', '\"') + '"'
+}
+
+function Invoke-Excel2LLMRoot {
+    param(
+        [string[]]$Arguments
+    )
+
+    $commandParts = [System.Collections.Generic.List[string]]::new()
+    [void]$commandParts.Add('set EXCEL2LLM_NO_PAUSE=1&&')
+    [void]$commandParts.Add((Convert-ToCmdArgument -Value $excel2llmBat))
+
+    foreach ($argument in @($Arguments)) {
+        [void]$commandParts.Add((Convert-ToCmdArgument -Value ([string]$argument)))
+    }
+
+    $commandLine = $commandParts -join ' '
+    return (& cmd.exe /d /c $commandLine 2>&1 | Out-String)
+}
+
 Describe 'Excel2LLM integration tests' {
     It 'shows usage help from bat entrypoints instead of falling into PowerShell mandatory prompts' {
         $batCases = @(
@@ -43,7 +69,12 @@ Describe 'Excel2LLM integration tests' {
             }
 
             foreach ($helpSwitch in @('-h', '--help', '/?')) {
-                $helpOutput = & cmd.exe /d /c """$($batCase.Path)"" $helpSwitch" 2>&1 | Out-String
+                if ($batCase.Path -eq $excel2llmBat) {
+                    $helpOutput = Invoke-Excel2LLMRoot -Arguments @($helpSwitch)
+                }
+                else {
+                    $helpOutput = & cmd.exe /d /c """$($batCase.Path)"" $helpSwitch" 2>&1 | Out-String
+                }
                 $LASTEXITCODE | Should Be 1
                 $helpOutput | Should Match $usagePattern
             }
@@ -221,8 +252,8 @@ Describe 'Excel2LLM integration tests' {
 
         & $sampleScript -OutputDir $samplesDir
 
-        $runAllOutput = & cmd.exe /d /c """$excel2llmBat"" ""$bookPath"" -OutputDir ""$outputDir""" 2>&1 | Out-String
-        $runAllVerifyOutput = & cmd.exe /d /c """$excel2llmBat"" ""$bookPath"" -Verify -OutputDir ""$outputDir""" 2>&1 | Out-String
+        $runAllOutput = Invoke-Excel2LLMRoot -Arguments @($bookPath, '-OutputDir', $outputDir)
+        $runAllVerifyOutput = Invoke-Excel2LLMRoot -Arguments @($bookPath, '-Verify', '-OutputDir', $outputDir)
 
         (Test-Path -LiteralPath (Join-Path $outputDir 'workbook.json')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outputDir 'llm_package.jsonl')) | Should Be $true
@@ -239,7 +270,7 @@ Describe 'Excel2LLM integration tests' {
 
         New-MiniWorkbook -Path $bookPath
 
-        & cmd.exe /d /c """$excel2llmBat"" ""$bookPath"" -Verify -RedactPaths -AllowWorkbookMacros -OutputDir ""$outputDir""" | Out-Null
+        Invoke-Excel2LLMRoot -Arguments @($bookPath, '-Verify', '-RedactPaths', '-AllowWorkbookMacros', '-OutputDir', $outputDir) | Out-Null
 
         $LASTEXITCODE | Should Be 0
 
@@ -262,7 +293,7 @@ Describe 'Excel2LLM integration tests' {
 
         Push-Location $workspace
         try {
-            $promptOutput = & cmd.exe /d /c """$excel2llmBat"" -PromptBundle -Scenario general -WorkbookJsonPath ""$outputDir\workbook.json"" -JsonlPath ""$outputDir\llm_package.jsonl"" -OutputDir ""$outputDir\prompt_bundle""" 2>&1 | Out-String
+            $promptOutput = Invoke-Excel2LLMRoot -Arguments @('-PromptBundle', '-Scenario', 'general', '-WorkbookJsonPath', "$outputDir\workbook.json", '-JsonlPath', "$outputDir\llm_package.jsonl", '-OutputDir', "$outputDir\prompt_bundle")
         }
         finally {
             Pop-Location
@@ -321,7 +352,7 @@ Describe 'Excel2LLM integration tests' {
 
             Push-Location $workspace
             try {
-                & cmd.exe /d /c """$excel2llmBat"" -PromptBundle -Scenario general" | Out-Null
+                Invoke-Excel2LLMRoot -Arguments @('-PromptBundle', '-Scenario', 'general') | Out-Null
             }
             finally {
                 Pop-Location
@@ -345,12 +376,40 @@ Describe 'Excel2LLM integration tests' {
         $workspace = New-TestWorkspace -Name 'error-guidance'
         $missingPath = Join-Path $workspace 'missing.xlsx'
 
-        $output = & cmd.exe /d /c """$excel2llmBat"" ""$missingPath""" 2>&1 | Out-String
+        $output = Invoke-Excel2LLMRoot -Arguments @($missingPath)
 
         $LASTEXITCODE | Should Not Be 0
         $output | Should Match '1\. Excel を閉じる'
         $output | Should Match '2\. コマンドをもう一度実行する'
         $output | Should Match '3\. まだダメなら Excel2LLM\.bat -SelfTest'
+    }
+
+    It 'supports direct root modes for preflight, extract, verify, pack, and rebuild' {
+        $workspace = New-TestWorkspace -Name 'root-direct-modes'
+        $bookPath = Join-Path $workspace 'styles.xlsx'
+        $extractDir = Join-Path $workspace 'extract'
+        $jsonlPath = Join-Path $workspace 'packed.jsonl'
+        $rebuiltPath = Join-Path $workspace 'rebuilt\styles_rebuilt.xlsx'
+
+        New-MiniWorkbook -Path $bookPath -IncludeStyles
+
+        $preflightOutput = Invoke-Excel2LLMRoot -Arguments @('-Preflight', $bookPath, '-OutputDir', $extractDir)
+        $extractOutput = Invoke-Excel2LLMRoot -Arguments @('-Extract', $bookPath, '-OutputDir', $extractDir, '-CollectStyles')
+        $verifyOutput = Invoke-Excel2LLMRoot -Arguments @('-Verify', $bookPath, '-WorkbookJsonPath', (Join-Path $extractDir 'workbook.json'), '-OutputDir', $extractDir)
+        $packOutput = Invoke-Excel2LLMRoot -Arguments @('-Pack', (Join-Path $extractDir 'workbook.json'), '-OutputPath', $jsonlPath, '-ChunkBy', 'range', '-MaxCells', '10')
+        $rebuildOutput = Invoke-Excel2LLMRoot -Arguments @('-Rebuild', (Join-Path $extractDir 'workbook.json'), '-StylesJsonPath', (Join-Path $extractDir 'styles.json'), '-OutputPath', $rebuiltPath, '-Overwrite')
+
+        (Test-Path -LiteralPath (Join-Path $extractDir 'preflight_report.json')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $extractDir 'workbook.json')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $extractDir 'styles.json')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $extractDir 'verify_report.json')) | Should Be $true
+        (Test-Path -LiteralPath $jsonlPath) | Should Be $true
+        (Test-Path -LiteralPath $rebuiltPath) | Should Be $true
+        $preflightOutput | Should Match '=== 事前チェック結果 ==='
+        $extractOutput | Should Match '=== Excel2LLM 抽出結果 ==='
+        $verifyOutput | Should Match '=== 検証結果 ==='
+        $packOutput | Should Match '=== パッキング結果 ==='
+        $rebuildOutput | Should Match 'rebuild_report\.json'
     }
 
     It 'supports path redaction and explicit macro opt-in for extract and verify flows' {

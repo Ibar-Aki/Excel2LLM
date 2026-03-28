@@ -1,8 +1,8 @@
 ﻿{
-  "generated_at": "2026-03-28 16:56 JST",
+  "generated_at": "2026-03-28 20:17 JST",
   "generator": "Excel2LLM Share Package Builder",
   "package_name": "Excel2LLM_Share",
-  "file_count": 32,
+  "file_count": 33,
   "files": [
     "Excel2LLM.bat",
     "GETTING_STARTED.md",
@@ -19,6 +19,7 @@
     "scripts\\excel_verify.ps1",
     "scripts\\export_prompt_bundle.ps1",
     "scripts\\extract_excel.ps1",
+    "scripts\\invoke_excel2llm.ps1",
     "scripts\\launch_menu.ps1",
     "scripts\\pack_for_llm.ps1",
     "scripts\\preflight_excel.ps1",

@@ -63,32 +63,24 @@ tools\developer\run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share"
 
 基本は、`distribution\Excel2LLM_Share` フォルダごと渡せば十分です。
 
-配布先では、そのフォルダの中で次を使えば動作します。
+配布先では、基本的に `Excel2LLM.bat` だけ見せれば十分です。
 
-- `Excel2LLM.bat`
-- `tools\user\run_all.bat`
-- `tools\user\run_prompt_bundle.bat`
-- `tools\user\run_self_test.bat`
-- `tools\advanced\run_extract.bat`
-- `tools\advanced\run_preflight.bat`
-- `tools\advanced\run_pack.bat`
-- `tools\advanced\run_verify.bat`
-- `tools\advanced\run_rebuild.bat`
+内部には `tools\user\` と `tools\advanced\` も入っていますが、利用者向けの主導線は `Excel2LLM.bat` に統一します。
 
 ## 配布先の人に最初に読んでもらうもの
 
 推奨順は次です。
 
-1. `README.md`
-2. `GETTING_STARTED.md`
-3. `docs\reference\LLM_PROMPT_FORMATS.md`
+1. `GETTING_STARTED.md`
+2. `README.md`
+3. 必要になったら `docs\reference\LLM_PROMPT_FORMATS.md`
 
 役割の違い:
 
+- `GETTING_STARTED.md`
+  - 実際の操作手順をまとめた利用者向けの主文書
 - `README.md`
   - このフォルダで何ができるかを最初に把握する入口
-- `GETTING_STARTED.md`
-  - 利用者向けの手順をまとめた唯一の案内
 
 ## 注意
 

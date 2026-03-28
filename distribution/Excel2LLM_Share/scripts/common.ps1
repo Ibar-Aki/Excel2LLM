@@ -201,12 +201,12 @@ function Set-LatestOutputDirectory {
 function Get-LatestOutputDirectory {
     $pointerPath = Get-LatestOutputDirectoryPointerPath
     if (-not (Test-Path -LiteralPath $pointerPath)) {
-        throw '最新の実行結果が見つかりません。先に Excel2LLM.bat または tools\advanced\run_extract.bat を実行してください。'
+        throw '最新の実行結果が見つかりません。先に Excel2LLM.bat で Excel を処理してください。'
     }
 
     $resolvedOutputDir = [string]([System.IO.File]::ReadAllText($pointerPath, [System.Text.Encoding]::UTF8)).Trim()
     if ([string]::IsNullOrWhiteSpace($resolvedOutputDir)) {
-        throw 'latest_run.txt の内容が空です。先に Excel2LLM.bat または tools\advanced\run_extract.bat を実行してください。'
+        throw 'latest_run.txt の内容が空です。先に Excel2LLM.bat で Excel を処理してください。'
     }
 
     if (-not (Test-Path -LiteralPath $resolvedOutputDir)) {
