@@ -206,9 +206,9 @@ try {
     }
 
     Write-JsonFile -Data $manifest -Path $manifestPath
-    Write-Host "Exported prompt bundle -> $resolvedOutputDir"
+    Write-Host "prompt bundle を出力しました -> $resolvedOutputDir"
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'prompt bundle'
-    throw "export_prompt_bundle.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
+    throw "export_prompt_bundle.ps1 の $($_.InvocationInfo.ScriptLineNumber) 行目: $($_.Exception.Message)"
 }

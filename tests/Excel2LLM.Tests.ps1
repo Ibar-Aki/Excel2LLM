@@ -22,13 +22,13 @@ $runPromptBundleBat = Join-Path $projectRoot 'run_prompt_bundle.bat'
 Describe 'Excel2LLM integration tests' {
     It 'shows usage help from bat entrypoints instead of falling into PowerShell mandatory prompts' {
         $batCases = @(
-            @{ Path = $runExtractBat; Usage = 'Usage: run_extract.bat' }
-            @{ Path = $runPackBat; Usage = 'Usage: run_pack.bat' }
-            @{ Path = $runPreflightBat; Usage = 'Usage: run_preflight.bat' }
-            @{ Path = $runVerifyBat; Usage = 'Usage: run_verify.bat' }
-            @{ Path = $runRebuildBat; Usage = 'Usage: run_rebuild.bat' }
-            @{ Path = $runAllBat; Usage = 'Usage: run_all.bat' }
-            @{ Path = $runPromptBundleBat; Usage = 'Usage: run_prompt_bundle.bat' }
+            @{ Path = $runExtractBat; Usage = '使い方: run_extract.bat' }
+            @{ Path = $runPackBat; Usage = '使い方: run_pack.bat' }
+            @{ Path = $runPreflightBat; Usage = '使い方: run_preflight.bat' }
+            @{ Path = $runVerifyBat; Usage = '使い方: run_verify.bat' }
+            @{ Path = $runRebuildBat; Usage = '使い方: run_rebuild.bat' }
+            @{ Path = $runAllBat; Usage = '使い方: run_all.bat' }
+            @{ Path = $runPromptBundleBat; Usage = '使い方: run_prompt_bundle.bat' }
         )
 
         foreach ($batCase in $batCases) {
@@ -99,7 +99,7 @@ Describe 'Excel2LLM integration tests' {
 
         $corruptDidThrow | Should Be $true
         $corruptReport.status | Should Be 'blocked'
-        ($corruptReport.reasons -join ' ') | Should Match 'OpenXML ZIP archive'
+        ($corruptReport.reasons -join ' ') | Should Match 'OpenXML ZIP'
         $missingRelsDidThrow | Should Be $true
         $missingRelsReport.status | Should Be 'blocked'
         ($missingRelsReport.reasons -join ' ') | Should Match 'xl/_rels/workbook\.xml\.rels'
@@ -118,7 +118,7 @@ Describe 'Excel2LLM integration tests' {
         $preflightReport.status | Should Be 'warning'
         $preflightReport.blocked | Should Be $false
         $preflightReport.file_size_bytes | Should BeGreaterThan 50MB
-        ($preflightReport.warnings -join ' ') | Should Match 'File size is large'
+        ($preflightReport.warnings -join ' ') | Should Match 'ファイルサイズが大きめです'
     }
 
     It 'blocks oversized or malformed-dimension workbooks before extraction starts' {
@@ -150,10 +150,10 @@ Describe 'Excel2LLM integration tests' {
         $missingDimensionReport = Get-Content -LiteralPath (Join-Path $missingDimensionOutputDir 'preflight_report.json') -Raw | ConvertFrom-Json
 
         $oversizedReport.status | Should Be 'blocked'
-        ($oversizedReport.reasons -join ' ') | Should Match 'File size exceeds the blocking threshold'
+        ($oversizedReport.reasons -join ' ') | Should Match 'ファイルサイズが上限を超えています'
         $missingDimensionDidThrow | Should Be $true
         $missingDimensionReport.status | Should Be 'blocked'
-        ($missingDimensionReport.reasons -join ' ') | Should Match 'dimension is missing'
+        ($missingDimensionReport.reasons -join ' ') | Should Match 'シート範囲情報が見つかりません'
     }
 
     It 'extracts workbook metadata, formulas, merge information, and xlsm VBA metadata' {
@@ -265,7 +265,7 @@ Describe 'Excel2LLM integration tests' {
         }
 
         (Test-Path -LiteralPath (Join-Path $outputDir 'prompt_bundle\prompt_bundle_manifest.json')) | Should Be $true
-        $promptOutput | Should Match '=== Prompt Bundle 結果 ==='
+        $promptOutput | Should Match '=== 指示文セット作成結果 ==='
         $promptOutput | Should Match '=== 次のおすすめ ==='
     }
 

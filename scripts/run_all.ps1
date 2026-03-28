@@ -66,5 +66,5 @@ try {
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'run_all'
-    throw "run_all.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
+    throw "run_all.ps1 の $($_.InvocationInfo.ScriptLineNumber) 行目: $($_.Exception.Message)"
 }

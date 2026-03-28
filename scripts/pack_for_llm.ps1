@@ -230,5 +230,5 @@ try {
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'pack'
-    throw "pack_for_llm.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
+    throw "pack_for_llm.ps1 の $($_.InvocationInfo.ScriptLineNumber) 行目: $($_.Exception.Message)"
 }

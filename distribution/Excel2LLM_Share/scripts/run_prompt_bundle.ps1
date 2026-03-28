@@ -31,7 +31,7 @@ try {
         -MaxChunkPrompts $MaxChunkPrompts `
         -RedactPaths:$RedactPaths
 
-    Write-Host '=== Prompt Bundle 結果 ==='
+    Write-Host '=== 指示文セット作成結果 ==='
     Write-Host ('  シナリオ:   {0}' -f $Scenario)
     Write-Host ('  出力先:     {0}' -f (Get-NormalizedFullPath -Path $OutputDir))
     Write-NextStepBlock -Steps @(
@@ -41,5 +41,5 @@ try {
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'run_prompt_bundle'
-    throw "run_prompt_bundle.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
+    throw "run_prompt_bundle.ps1 の $($_.InvocationInfo.ScriptLineNumber) 行目: $($_.Exception.Message)"
 }

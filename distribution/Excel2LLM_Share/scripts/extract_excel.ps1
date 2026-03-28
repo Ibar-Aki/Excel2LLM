@@ -410,7 +410,7 @@ try {
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'extract'
-    throw "extract_excel.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
+    throw "extract_excel.ps1 の $($_.InvocationInfo.ScriptLineNumber) 行目: $($_.Exception.Message)"
 }
 finally {
     if ($null -ne $usedRange) {

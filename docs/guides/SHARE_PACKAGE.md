@@ -76,11 +76,20 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 
 推奨順は次です。
 
-1. `GETTING_STARTED.md`
-2. `README.md`
+1. `README.md`
+2. `GETTING_STARTED.md`
 3. `docs\guides\MANUAL.md`
 4. `docs\guides\USER_GUIDE.md`
 5. `docs\reference\LLM_PROMPT_FORMATS.md`
+
+役割の違い:
+
+- `README.md`
+  - このフォルダで何ができるかを最初に把握する入口
+- `GETTING_STARTED.md`
+  - 最初の 1 回だけ、動作確認と最初の実行を順番に進める案内
+- `MANUAL.md`
+  - 2 回目以降に毎回見る短い早見表
 
 ## 注意
 

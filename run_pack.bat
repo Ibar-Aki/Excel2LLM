@@ -13,12 +13,5 @@ if /I "%~1"=="/?" goto :usage
 exit /b %errorlevel%
 
 :usage
-echo Usage: run_pack.bat "output\workbook.json" [options]
-echo.
-echo Common options:
-echo   -ChunkBy sheet
-echo   -ChunkBy range -MaxCells 300
-echo   -IncludeStyles
-echo.
-echo See: docs\guides\MANUAL.md or docs\guides\USER_GUIDE.md
+"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\show_usage.ps1" -CommandName run_pack
 exit /b 1

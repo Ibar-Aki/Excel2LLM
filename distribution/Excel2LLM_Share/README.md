@@ -4,7 +4,8 @@
 - 作成者: Codex (GPT-5)
 - 更新日: 2026-03-28
 
-Windows と M365 Excel を前提に、Excel ブックを LLM 向けの JSON / JSONL に変換するツールです。
+あなたの Excel ファイルを、ChatGPT などの LLM に渡しやすい形式へ変換するツールです。
+Excel を開いて手でコピペしなくても、コマンド 1 つで必要なデータを取り出せます。
 
 ## 3ステップで使う
 
@@ -33,12 +34,12 @@ run_prompt_bundle.bat -Scenario general
 - `output\llm_package.jsonl`
 - `output\verify_report.json`
 
-## 最初に読む文書
+## このあと読む文書
 
 - `GETTING_STARTED.md`
-  - 配布先の人が最初に読む 1 ページ
+  - 初回の動作確認を順番に進めたいときに読む 1 ページ
 - `docs/guides/MANUAL.md`
-  - 初回 3 分で使うための短いクイックスタート
+  - 毎回使う短い早見表
 - `docs/guides/USER_GUIDE.md`
   - 詳しい手順、オプション、出力の見方、トラブル対応
 - `docs/reference/LLM_PROMPT_FORMATS.md`

@@ -6,8 +6,8 @@
 
 ## この文書の役割
 
-この文書は、初回 3 分で使い始めるための短い手順だけをまとめたものです。
-詳しい説明は `USER_GUIDE.md` に集約しています。
+この文書は、普段の実行で毎回参照する短い早見表です。
+最初の 1 回だけ順番に確認したい場合は `..\..\GETTING_STARTED.md`、詳しい説明は `USER_GUIDE.md` を見てください。
 
 ## 最短手順
 
@@ -34,7 +34,7 @@ run_prompt_bundle.bat -Scenario general
 ## まず見るファイル
 
 - `output\workbook.json`
-  - Excel の内容を保存した正本
+  - Excel 全体の内容を保存したファイル
 - `output\preflight_report.json`
   - 事前チェックの結果
 - `output\llm_package.jsonl`
@@ -43,6 +43,19 @@ run_prompt_bundle.bat -Scenario general
   - Excel との突き合わせ結果
 - `output\prompt_bundle\prompt_*.txt`
   - LLM に貼り付けるための prompt テキスト
+
+## 主なオプション
+
+- `-Verify`
+  - `run_all` の中で検証も行います
+- `-CollectStyles`
+  - 色や罫線などの補助情報を `styles.json` に追加します
+- `-RedactPaths`
+  - 出力ファイルに絶対パスを残しにくくします
+- `-Sheets`
+  - 指定したシートだけを対象にします
+- `-ExcludeSheets`
+  - 指定したシートを除外します
 
 ## 困ったとき
 
@@ -57,6 +70,13 @@ run_prompt_bundle.bat -Scenario general
 - 詳しい手順を見たい
   - `USER_GUIDE.md`
 - LLM への指示文を見たい
+  - `..\reference\LLM_PROMPT_FORMATS.md`
+
+## ここから先は
+
+- 詳しい手順やオプション
+  - `USER_GUIDE.md`
+- LLM への指示テンプレート
   - `..\reference\LLM_PROMPT_FORMATS.md`
 
 ## 補足

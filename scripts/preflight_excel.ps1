@@ -151,12 +151,19 @@ function Write-PreflightSummary {
         'なし'
     }
     else {
-        '{0} ({1} cells)' -f $Report.largest_sheet.name, $Report.largest_sheet.estimated_cell_count
+        '{0} ({1} セル)' -f $Report.largest_sheet.name, $Report.largest_sheet.estimated_cell_count
     }
 
-    Write-Host '=== Preflight 結果 ==='
+    $statusLabel = switch ([string]$Report.status) {
+        'success' { '成功' }
+        'warning' { '警告あり' }
+        'blocked' { '停止' }
+        default { [string]$Report.status }
+    }
+
+    Write-Host '=== 事前チェック結果 ==='
     Write-Host ('  対象ファイル:     {0}' -f [System.IO.Path]::GetFileName([string]$Report.workbook_path))
-    Write-Host ('  判定:             {0}' -f [string]$Report.status)
+    Write-Host ('  判定:             {0}' -f $statusLabel)
     Write-Host ('  ファイルサイズ:   {0}' -f (Get-FileSizeLabel -Bytes ([int64]$Report.file_size_bytes)))
     Write-Host ('  シート数:         {0}' -f [int]$Report.sheet_count)
     Write-Host ('  推定総セル数:     {0}' -f $(if ($null -eq $Report.estimated_total_cells) { '不明' } else { [string]$Report.estimated_total_cells }))
@@ -164,11 +171,11 @@ function Write-PreflightSummary {
     Write-Host ('  レポート:         {0}' -f [string]$Report.report_path)
 
     foreach ($warning in @($Report.warnings)) {
-        Write-Host ('  WARNING:          {0}' -f [string]$warning)
+        Write-Host ('  警告:             {0}' -f [string]$warning)
     }
 
     foreach ($reason in @($Report.reasons)) {
-        Write-Host ('  BLOCKED:          {0}' -f [string]$reason)
+        Write-Host ('  停止理由:         {0}' -f [string]$reason)
     }
 }
 
@@ -200,7 +207,7 @@ $largestSheet = $null
 
 try {
     if (-not (Test-Path -LiteralPath $ExcelPath)) {
-        [void]$reasons.Add(("File was not found: {0}" -f $ExcelPath))
+        [void]$reasons.Add(("ファイルが見つかりません: {0}" -f $ExcelPath))
     }
     else {
         $resolvedExcelPath = Resolve-AbsolutePath -Path $ExcelPath
@@ -210,14 +217,14 @@ try {
         $extension = [System.IO.Path]::GetExtension($resolvedExcelPath).ToLowerInvariant()
 
         if (@('.xlsx', '.xlsm') -notcontains $extension) {
-            [void]$reasons.Add(("Unsupported extension: {0}. Only .xlsx and .xlsm are allowed." -f $extension))
+            [void]$reasons.Add(("対応していない拡張子です: {0}。対応形式は .xlsx と .xlsm だけです。" -f $extension))
         }
 
         if ($fileSizeBytes -gt $blockingFileSizeBytes) {
-            [void]$reasons.Add(("File size exceeds the blocking threshold: {0} > {1}" -f (Get-FileSizeLabel -Bytes $fileSizeBytes), (Get-FileSizeLabel -Bytes $blockingFileSizeBytes)))
+            [void]$reasons.Add(("ファイルサイズが上限を超えています: {0} > {1}" -f (Get-FileSizeLabel -Bytes $fileSizeBytes), (Get-FileSizeLabel -Bytes $blockingFileSizeBytes)))
         }
         elseif ($fileSizeBytes -gt $warningFileSizeBytes) {
-            [void]$warnings.Add(("File size is large: {0}" -f (Get-FileSizeLabel -Bytes $fileSizeBytes)))
+            [void]$warnings.Add(("ファイルサイズが大きめです: {0}" -f (Get-FileSizeLabel -Bytes $fileSizeBytes)))
         }
 
         if ($reasons.Count -eq 0) {
@@ -229,7 +236,7 @@ try {
 
                 foreach ($requiredEntry in @('[Content_Types].xml', 'xl/workbook.xml', 'xl/_rels/workbook.xml.rels')) {
                     if ($null -eq $zipArchive.GetEntry($requiredEntry)) {
-                        [void]$reasons.Add(("Required OpenXML entry is missing: {0}" -f $requiredEntry))
+                        [void]$reasons.Add(("必須の OpenXML エントリが不足しています: {0}" -f $requiredEntry))
                     }
                 }
 
@@ -238,7 +245,7 @@ try {
                     $workbookRelsText = Get-ZipEntryText -Archive $zipArchive -EntryPath 'xl/_rels/workbook.xml.rels'
 
                     if ([string]::IsNullOrWhiteSpace($workbookXmlText) -or [string]::IsNullOrWhiteSpace($workbookRelsText)) {
-                        [void]$reasons.Add('Workbook XML could not be read.')
+                        [void]$reasons.Add('workbook.xml の内容を読み取れませんでした。')
                     }
                     else {
                         [xml]$workbookXml = $workbookXmlText
@@ -278,7 +285,7 @@ try {
 
                             if ([string]::IsNullOrWhiteSpace($sheetEntryPath)) {
                                 $sheetReport.status = 'blocked'
-                                [void]$reasons.Add(("Worksheet relationship is missing for sheet: {0}" -f $sheetName))
+                                [void]$reasons.Add(("シートの関連付けが見つかりません: {0}" -f $sheetName))
                                 [void]$sheetReports.Add($sheetReport)
                                 continue
                             }
@@ -286,7 +293,7 @@ try {
                             $sheetEntry = $zipArchive.GetEntry($sheetEntryPath)
                             if ($null -eq $sheetEntry) {
                                 $sheetReport.status = 'blocked'
-                                [void]$reasons.Add(("Worksheet XML is missing for sheet {0}: {1}" -f $sheetName, $sheetEntryPath))
+                                [void]$reasons.Add(("シート XML が見つかりません: {0} ({1})" -f $sheetName, $sheetEntryPath))
                                 [void]$sheetReports.Add($sheetReport)
                                 continue
                             }
@@ -294,7 +301,7 @@ try {
                             $sheetXmlText = Get-ZipEntryText -Archive $zipArchive -EntryPath $sheetEntryPath
                             if ([string]::IsNullOrWhiteSpace($sheetXmlText)) {
                                 $sheetReport.status = 'blocked'
-                                [void]$reasons.Add(("Worksheet XML could not be read for sheet: {0}" -f $sheetName))
+                                [void]$reasons.Add(("シート XML を読み取れませんでした: {0}" -f $sheetName))
                                 [void]$sheetReports.Add($sheetReport)
                                 continue
                             }
@@ -318,10 +325,10 @@ try {
                                     $sheetReport.status = 'warning'
                                     if ($fileSizeBytes -ge $warningFileSizeBytes) {
                                         $sheetReport.status = 'blocked'
-                                        [void]$reasons.Add(("Worksheet dimension is missing for sheet {0} and the file is at least 50 MB." -f $sheetName))
+                                        [void]$reasons.Add(("シート範囲情報が見つかりません: {0}。ファイルサイズが 50MB 以上のため停止しました。" -f $sheetName))
                                     }
                                     else {
-                                        [void]$warnings.Add(("Worksheet dimension is missing for sheet: {0}" -f $sheetName))
+                                        [void]$warnings.Add(("シート範囲情報が見つかりません: {0}" -f $sheetName))
                                     }
                                 }
                                 else {
@@ -336,29 +343,29 @@ try {
 
                                     if ([int64]$dimensionInfo.estimated_cell_count -gt $blockingSheetCellThreshold) {
                                         $sheetReport.status = 'blocked'
-                                        [void]$reasons.Add(("Estimated cells exceed the single-sheet limit for {0}: {1}" -f $sheetName, [int64]$dimensionInfo.estimated_cell_count))
+                                        [void]$reasons.Add(("単一シートの推定セル数が上限を超えています: {0} ({1})" -f $sheetName, [int64]$dimensionInfo.estimated_cell_count))
                                     }
                                 }
                             }
                             catch {
                                 $sheetReport.status = 'blocked'
-                                [void]$reasons.Add(("Worksheet XML could not be parsed for sheet {0}: {1}" -f $sheetName, $_.Exception.Message))
+                                [void]$reasons.Add(("シート XML を解析できませんでした: {0} ({1})" -f $sheetName, $_.Exception.Message))
                             }
 
                             [void]$sheetReports.Add($sheetReport)
                         }
 
                         if ($estimatedTotalCells -gt $blockingCellThreshold) {
-                            [void]$reasons.Add(("Estimated total cells exceed the blocking threshold: {0}" -f $estimatedTotalCells))
+                            [void]$reasons.Add(("推定総セル数が上限を超えています: {0}" -f $estimatedTotalCells))
                         }
                         elseif ($estimatedTotalCells -gt $warningCellThreshold) {
-                            [void]$warnings.Add(("Estimated total cells are large: {0}" -f $estimatedTotalCells))
+                            [void]$warnings.Add(("推定総セル数が大きめです: {0}" -f $estimatedTotalCells))
                         }
                     }
                 }
             }
             catch {
-                [void]$reasons.Add(("Workbook could not be opened as an OpenXML ZIP archive: {0}" -f $_.Exception.Message))
+                [void]$reasons.Add(("OpenXML ZIP として開けませんでした: {0}" -f $_.Exception.Message))
             }
             finally {
                 if ($null -ne $zipArchive) {
@@ -372,7 +379,7 @@ try {
     }
 }
 catch {
-    [void]$reasons.Add(("Preflight failed unexpectedly: {0}" -f $_.Exception.Message))
+    [void]$reasons.Add(("事前チェックが予期せず失敗しました: {0}" -f $_.Exception.Message))
 }
 
 $fileSizeValue = if (Test-Path -LiteralPath $ExcelPath) { [int64](Get-Item -LiteralPath $ExcelPath).Length } else { 0L }
@@ -401,5 +408,5 @@ Write-PreflightSummary -Report $report
 
 if ($blocked) {
     Write-PreflightStopGuidance
-    throw "Preflight blocked extraction. See: $reportPath"
+    throw "事前チェックで抽出を停止しました。詳細: $reportPath"
 }

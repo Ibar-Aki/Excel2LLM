@@ -13,13 +13,5 @@ if /I "%~1"=="/?" goto :usage
 exit /b %errorlevel%
 
 :usage
-echo Usage: run_prompt_bundle.bat -Scenario general [options]
-echo.
-echo Common options:
-echo   -Scenario general^|mechanical^|accounting
-echo   -WorkbookJsonPath "output\workbook.json"
-echo   -JsonlPath "output\llm_package.jsonl"
-echo   -OutputDir "output\prompt_bundle"
-echo.
-echo See: docs\guides\USER_GUIDE.md
+"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\show_usage.ps1" -CommandName run_prompt_bundle
 exit /b 1

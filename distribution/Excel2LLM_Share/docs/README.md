@@ -8,9 +8,10 @@
 
 初めて使う人:
 
-1. `guides/MANUAL.md`
-2. `guides/USER_GUIDE.md`
-3. `reference/LLM_PROMPT_FORMATS.md`
+1. `..\GETTING_STARTED.md`
+2. `guides/MANUAL.md`
+3. `guides/USER_GUIDE.md`
+4. `reference/LLM_PROMPT_FORMATS.md`
 
 他の人へ渡したい人:
 
@@ -29,7 +30,7 @@
 ## 文書の役割
 
 - `guides/MANUAL.md`
-  - 最短手順だけを読むための短いクイックスタート
+  - 毎回の実行で使う短い早見表
 - `guides/USER_GUIDE.md`
   - 詳細な利用者向け手順書
 - `guides/SHARE_PACKAGE.md`

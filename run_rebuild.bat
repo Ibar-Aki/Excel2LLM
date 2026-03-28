@@ -13,12 +13,5 @@ if /I "%~1"=="/?" goto :usage
 exit /b %errorlevel%
 
 :usage
-echo Usage: run_rebuild.bat "output\workbook.json" [options]
-echo.
-echo Common options:
-echo   -StylesJsonPath "output\styles.json"
-echo   -OutputPath "C:\path\to\rebuilt.xlsx"
-echo   -Overwrite
-echo.
-echo See: docs\guides\MANUAL.md or docs\guides\USER_GUIDE.md
+"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\show_usage.ps1" -CommandName run_rebuild
 exit /b 1

@@ -9,18 +9,39 @@
 `Excel2LLM` の詳しい使い方をまとめた手順書です。
 最短手順だけ知りたい場合は、先に `MANUAL.md` を読んでください。
 
+## 普段は run_all を使えば十分
+
+普段は次の 1 コマンドで十分です。
+
+```bat
+run_all.bat "C:\Data\report.xlsx"
+```
+
+重要な資料なら:
+
+```bat
+run_all.bat "C:\Data\report.xlsx" -Verify
+```
+
+`run_all.bat` は `extract -> pack` をまとめて実行します。
+`-Verify` を付けたときだけ、途中で Excel との突き合わせも行います。
+
 ## まず理解しておくこと
 
 - `workbook.json`
-  - Excel の内容を保存した正本
+  - Excel の全シート・全セルの内容を保存したファイル（元データの正確なコピー）
 - `preflight_report.json`
   - 抽出前の事前チェック結果
 - `llm_package.jsonl`
-  - LLM に渡す実用ファイル
+  - 1 行に 1 つずつチャンクを保存したファイル
 - `verify_report.json`
   - Excel との突き合わせ結果
 - `styles.json`
   - 色、罫線、配置などの補助情報
+- `チャンク`
+  - LLM に一度に渡せるサイズに分割したデータのかたまり
+- `prompt bundle`
+  - LLM に貼り付けるための指示文セット
 
 ## 最短で進めるなら
 
@@ -36,9 +57,12 @@ run_all.bat "C:\Data\report.xlsx" -Verify
 
 ## 基本の流れ
 
+まずは `run_all.bat` を使えば十分です。
+必要に応じて、以下の個別コマンドを使い分けます。
+
 ### 0. 事前チェックで危険ファイルを止める
 
-`extract` と `run_all` は、抽出前に必ず `preflight` を実行します。
+`extract` と `run_all` は、抽出前に必ず `preflight`（事前チェック）を実行します。
 
 ```bat
 run_preflight.bat "C:\Data\report.xlsx"
@@ -101,19 +125,6 @@ run_prompt_bundle.bat -Scenario general
 - `output\prompt_bundle\prompt_*.txt`
 - `output\prompt_bundle\prompt_bundle_manifest.json`
 
-## run_all の役割
-
-`run_all.bat` は、`extract -> pack` をまとめて行う入口です。
-
-`-Verify` を付けたときだけ、`verify` を挟みます。
-
-```bat
-run_all.bat "C:\Data\sample.xlsx"
-run_all.bat "C:\Data\sample.xlsx" -Verify
-```
-
-`run_all` も `extract` と同じ preflight を通過した場合だけ先へ進みます。
-
 ## 各コマンドの使い分け
 
 ### extract
@@ -172,6 +183,7 @@ run_pack.bat "output\workbook.json" -ChunkBy sheet -IncludeStyles
 用途:
 
 - 抽出した JSON と Excel の再計算結果を突き合わせたい
+- `run_all -Verify` では、この verify が途中で自動実行される
 
 例:
 
@@ -198,6 +210,7 @@ run_rebuild.bat "output\workbook.json" -StylesJsonPath "output\styles.json" -Out
 用途:
 
 - LLM にそのまま貼りやすい prompt テキストを作りたい
+- `prompt bundle` は「LLM に貼り付けるための指示文セット」の意味
 
 例:
 
@@ -226,6 +239,7 @@ run_rebuild.bat -h
 ### extract のあと
 
 - コンソールの `Excel2LLM 抽出結果`
+- `preflight_report.json` の `warnings`
 - `manifest.json` の `warnings`
 - `workbook.json` の `sheet_count`, `formula_count`
 - 表示された `次のおすすめ`
@@ -273,9 +287,8 @@ run_rebuild.bat -h
 
 ### 何から始めればいいかわからない
 
-1. `run_extract.bat "対象.xlsx"`
-2. `run_pack.bat "output\workbook.json"`
-3. `llm_package.jsonl` を使う
+1. `run_all.bat "対象.xlsx"`
+2. `output\llm_package.jsonl` を使う
 
 ### コマンドが失敗した
 

@@ -2,6 +2,7 @@
 
 - 作成日: 2026-03-28 10:44 JST
 - 作成者: Codex (GPT-5)
+- 更新日: 2026-03-28
 
 ## 1. 文書の目的
 
@@ -190,7 +191,7 @@
   2. 各 `.bat` を `-h`、`--help`、`/?` 付きで実行する
 - 期待結果:
   - 終了コードが `1`
-  - `Usage: run_xxx.bat` が表示される
+  - `使い方: run_xxx.bat` が表示される
   - `docs\guides\` への参照が表示される
 - 自動化状態:
   - 自動化済み
@@ -294,7 +295,7 @@
   3. `run_prompt_bundle.bat -Scenario general ...`
 - 期待結果:
   - `prompt_bundle_manifest.json` が生成される
-  - `=== Prompt Bundle 結果 ===` が表示される
+  - `=== 指示文セット作成結果 ===` が表示される
   - `=== 次のおすすめ ===` が表示される
 - 自動化状態:
   - 自動化済み
@@ -647,7 +648,7 @@
   - rebuild
   - rebuilt workbook の再抽出
 - 実行結果:
-  - `Self-test completed successfully.`
+  - `セルフテストが正常終了しました。`
 
 ### 7.3 配布用パッケージ再生成試験
 

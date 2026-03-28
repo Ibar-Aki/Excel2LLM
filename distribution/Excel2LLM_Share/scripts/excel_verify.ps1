@@ -161,7 +161,7 @@ try {
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'verify'
-    throw "excel_verify.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
+    throw "excel_verify.ps1 の $($_.InvocationInfo.ScriptLineNumber) 行目: $($_.Exception.Message)"
 }
 finally {
     if ($null -ne $workbook) {

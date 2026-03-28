@@ -170,6 +170,7 @@ function Write-ErrorRecoverySteps {
     Write-Host '  1. Excel を閉じる'
     Write-Host '  2. コマンドをもう一度実行する'
     Write-Host '  3. まだダメなら run_self_test.bat を実行する'
+    Write-Host '  ※ このあとに表示される英語メッセージは、技術調査用の詳細情報です。'
 }
 
 function Group-CellsBySheet {

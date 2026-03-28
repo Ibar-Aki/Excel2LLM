@@ -81,6 +81,7 @@ $filesToCopy = @(
     'scripts\run_domain_acceptance.ps1',
     'scripts\run_prompt_bundle.ps1',
     'scripts\run_self_test.ps1',
+    'scripts\show_usage.ps1',
     'templates\Excel2LLM_Helper.bas'
 )
 

@@ -13,17 +13,5 @@ if /I "%~1"=="/?" goto :usage
 exit /b %errorlevel%
 
 :usage
-echo Usage: run_all.bat "C:\path\to\book.xlsx" [-Verify] [extract options]
-echo.
-echo Common options:
-echo   -Verify
-echo   -OutputDir "C:\path\to\output"
-echo   -RedactPaths
-echo   -Sheets Summary,Calc
-echo.
-echo Notes:
-echo   - run_all uses the same mandatory preflight as run_extract.
-echo   - Oversized or corrupted workbooks are blocked before Excel starts.
-echo.
-echo See: docs\guides\MANUAL.md or docs\guides\USER_GUIDE.md
+"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\show_usage.ps1" -CommandName run_all
 exit /b 1

@@ -64,4 +64,4 @@ if ($roundTripWorkbookJson.workbook.sheet_count -ne $workbookJson.workbook.sheet
     throw 'Round-trip workbook sheet count does not match the source.'
 }
 
-Write-Host 'Self-test completed successfully.'
+Write-Host 'セルフテストが正常終了しました。'
