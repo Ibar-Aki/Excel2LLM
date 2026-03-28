@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-10 00:55 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-11
+- 更新日: 2026-03-27
 
 ## workbook.json
 
@@ -22,9 +22,9 @@
 ### workbook
 
 - `name`: ファイル名
-- `path`: 元ファイルの絶対パス
+- `path`: 元ファイルの絶対パス。`-RedactPaths` 指定時はファイル名
 - `extension`: `.xlsx` または `.xlsm`
-- `sheet_count`: シート数
+- `sheet_count`: 抽出結果に含まれるシート数
 - `has_vba`: VBA を含む可能性があるか
 
 ### sheets[]
@@ -95,6 +95,35 @@
 - `formula_cells`
 - `token_estimate`
 - `includes_styles`
+
+## manifest.json
+
+`manifest.json` は抽出全体の概要です。
+
+- `status`
+- `warnings`
+- `workbook_path`: 元ファイルの絶対パス。`-RedactPaths` 指定時はファイル名
+- `output_directory`: 出力先。`-RedactPaths` 指定時は末尾ディレクトリ名
+- `source_sheet_count`: 元ブックのシート総数
+- `sheet_count`: 抽出結果に含まれるシート数
+- `sheet_filter.include`: `-Sheets` で指定した一覧
+- `sheet_filter.exclude`: `-ExcludeSheets` で指定した一覧
+- `sheet_filter.selected`: 実際に抽出されたシート一覧
+- `cell_count`
+- `formula_count`
+- `merged_range_count`
+- `style_export_status`
+- `verify_status`
+
+## verify_report.json
+
+`verify_report.json` は再計算後の差分検証です。
+
+- `workbook_path`: 元 Excel の絶対パス。`-RedactPaths` 指定時はファイル名
+- `workbook_json_path`: 検証対象 JSON の絶対パス。`-RedactPaths` 指定時はファイル名
+- `mismatch_count`
+- `warnings`
+- `mismatches`
 
 ## rebuild_report.json
 

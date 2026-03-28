@@ -3,6 +3,8 @@ param(
     [Parameter(Mandatory)]
     [string]$ExcelPath,
     [string]$OutputDir,
+    [string[]]$Sheets,
+    [string[]]$ExcludeSheets,
     [switch]$CollectStyles,
     [switch]$SkipStyles,
     [switch]$NoRecalculate,
@@ -11,6 +13,49 @@ param(
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
+
+function Get-OptionalRangePropertyMatrix {
+    param(
+        [Parameter(Mandatory)]
+        $Range,
+        [Parameter(Mandatory)]
+        [string]$PropertyName,
+        [Parameter(Mandatory)]
+        $Warnings,
+        [Parameter(Mandatory)]
+        [string]$SheetName
+    )
+
+    try {
+        return ,$Range.$PropertyName
+    }
+    catch {
+        Add-WarningMessage -Warnings $Warnings -Message ("UsedRange.{0} could not be read for {1}: {2}" -f $PropertyName, $SheetName, $_.Exception.Message)
+        return $null
+    }
+}
+
+function Get-NormalizedSheetFilterList {
+    param(
+        [string[]]$Names
+    )
+
+    $normalized = [System.Collections.Generic.List[string]]::new()
+    foreach ($name in @($Names)) {
+        if ([string]::IsNullOrWhiteSpace([string]$name)) {
+            continue
+        }
+
+        $segments = ([string]$name) -split ','
+        foreach ($segment in $segments) {
+            if (-not [string]::IsNullOrWhiteSpace($segment)) {
+                [void]$normalized.Add($segment.Trim())
+            }
+        }
+    }
+
+    return [string[]]$normalized.ToArray()
+}
 
 if (-not $OutputDir) {
     $OutputDir = Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output'
@@ -24,6 +69,8 @@ $warnings = [System.Collections.Generic.List[string]]::new()
 $excel = $null
 $workbook = $null
 $usedRange = $null
+$requestedSheets = Get-NormalizedSheetFilterList -Names $Sheets
+$excludedSheets = Get-NormalizedSheetFilterList -Names $ExcludeSheets
 
 try {
     $resolvedExcelPath = Resolve-AbsolutePath -Path $ExcelPath
@@ -36,6 +83,7 @@ try {
 
     $excel = New-ExcelApplication -AllowWorkbookMacros:$AllowWorkbookMacros
     $workbook = $excel.Workbooks.Open($resolvedExcelPath, 0, $true)
+    $sourceSheetCount = [int]$workbook.Worksheets.Count
     if (-not $NoRecalculate) {
         try {
             $excel.CalculateFullRebuild()
@@ -45,22 +93,43 @@ try {
         }
     }
 
-    $sheets = New-Object System.Collections.Generic.List[object]
+    $sheetEntries = [System.Collections.Generic.List[object]]::new()
     $cells = New-Object System.Collections.Generic.List[object]
     $styles = New-Object System.Collections.Generic.List[object]
     $mergedRanges = New-Object System.Collections.Generic.List[object]
     $globalMergedKeys = [System.Collections.Generic.HashSet[string]]::new()
+    $availableSheets = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $selectedSheets = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     $totalFormulaCount = 0
     $totalCellCount = 0
 
     foreach ($sheet in $workbook.Worksheets) {
         $sheetName = [string]$sheet.Name
+        [void]$availableSheets.Add($sheetName)
+
+        $isIncluded = (@($requestedSheets).Count -eq 0 -or $requestedSheets -contains $sheetName)
+        if ($isIncluded -and @($excludedSheets).Count -gt 0 -and ($excludedSheets -contains $sheetName)) {
+            $isIncluded = $false
+        }
+
+        if (-not $isIncluded) {
+            Release-ComReference $sheet
+            continue
+        }
+
+        [void]$selectedSheets.Add($sheetName)
         $sheetIndex = [int]$sheet.Index
         $sheetVisible = [int]$sheet.Visible
         $usedRange = $sheet.UsedRange
         $rangeInfo = Get-UsedRangeInfo -UsedRange $usedRange
         $freezePanes = Get-WorksheetFreezeState -Excel $excel -Worksheet $sheet
+        $usedRangeValues = Get-OptionalRangePropertyMatrix -Range $usedRange -PropertyName 'Value2' -Warnings $warnings -SheetName $sheetName
+        $usedRangeFormulas = Get-OptionalRangePropertyMatrix -Range $usedRange -PropertyName 'Formula' -Warnings $warnings -SheetName $sheetName
+        $usedRangeFormula2 = Get-OptionalRangePropertyMatrix -Range $usedRange -PropertyName 'Formula2' -Warnings $warnings -SheetName $sheetName
+        $usedRangeNumberFormats = Get-OptionalRangePropertyMatrix -Range $usedRange -PropertyName 'NumberFormat' -Warnings $warnings -SheetName $sheetName
+        $usedRowCount = [int]$rangeInfo.row_count
+        $usedColumnCount = [int]$rangeInfo.column_count
 
         $sheetMergedRanges = New-Object System.Collections.Generic.List[object]
         $sheetMergedKeys = [System.Collections.Generic.HashSet[string]]::new()
@@ -116,11 +185,40 @@ try {
                 $cell = $null
                 $mergeArea = $null
                 try {
+                    $rowOffset = $rowIndex - $rangeInfo.first_row + 1
+                    $columnOffset = $columnIndex - $rangeInfo.first_column + 1
+                    $address = Convert-CoordinateToA1 -Row $rowIndex -Column $columnIndex
                     $cell = $sheet.Cells.Item($rowIndex, $columnIndex)
-                    $address = [string]$cell.Address($false, $false)
-                    $hasFormula = [bool]$cell.HasFormula
-                    $formula = if ($hasFormula) { [string]$cell.Formula } else { $null }
-                    $formula2 = if ($hasFormula) { Get-CellFormula2 -Cell $cell } else { $null }
+                    $value2 = if ($null -ne $usedRangeValues) {
+                        Convert-VariantValue -Value (Get-RangeMatrixValue -Matrix $usedRangeValues -RowOffset $rowOffset -ColumnOffset $columnOffset -RowCount $usedRowCount -ColumnCount $usedColumnCount)
+                    }
+                    else {
+                        Convert-VariantValue -Value $cell.Value2
+                    }
+
+                    if ($null -ne $usedRangeFormulas) {
+                        $formula = Convert-FormulaValue -Value (Get-RangeMatrixValue -Matrix $usedRangeFormulas -RowOffset $rowOffset -ColumnOffset $columnOffset -RowCount $usedRowCount -ColumnCount $usedColumnCount)
+                        $formula2 = Convert-FormulaValue -Value (Get-RangeMatrixValue -Matrix $usedRangeFormula2 -RowOffset $rowOffset -ColumnOffset $columnOffset -RowCount $usedRowCount -ColumnCount $usedColumnCount)
+                        $hasFormula = ($null -ne $formula)
+                    }
+                    else {
+                        $hasFormula = [bool]$cell.HasFormula
+                        $formula = if ($hasFormula) { [string]$cell.Formula } else { $null }
+                        $formula2 = if ($hasFormula) { Get-CellFormula2 -Cell $cell } else { $null }
+                    }
+
+                    if ($hasFormula -and $null -eq $formula2) {
+                        $formula2 = $formula
+                    }
+
+                    $numberFormat = if ($null -ne $usedRangeNumberFormats) {
+                        $numberFormatValue = Get-RangeMatrixValue -Matrix $usedRangeNumberFormats -RowOffset $rowOffset -ColumnOffset $columnOffset -RowCount $usedRowCount -ColumnCount $usedColumnCount
+                        if ($null -eq $numberFormatValue) { $null } else { [string]$numberFormatValue }
+                    }
+                    else {
+                        [string]$cell.NumberFormat
+                    }
+
                     $mergeAreaAddress = $null
                     $isMergeAnchor = $false
 
@@ -148,12 +246,12 @@ try {
                         address = $address
                         row = $rowIndex
                         column = $columnIndex
-                        value2 = Convert-VariantValue -Value $cell.Value2
+                        value2 = $value2
                         text = [string]$cell.Text
                         formula = $formula
                         formula2 = $formula2
                         has_formula = $hasFormula
-                        number_format = [string]$cell.NumberFormat
+                        number_format = $numberFormat
                         merge_area = $mergeAreaAddress
                         is_merge_anchor = $isMergeAnchor
                         comment = Get-CellCommentText -Cell $cell
@@ -199,7 +297,7 @@ try {
             }
         }
 
-        $sheets.Add([ordered]@{
+        $sheetEntries.Add([ordered]@{
             sheet_name = $sheetName
             sheet_index = $sheetIndex
             visible = $sheetVisible
@@ -222,6 +320,18 @@ try {
         Release-ComReference $sheet
     }
 
+    foreach ($requestedSheet in $requestedSheets) {
+        if (-not $availableSheets.Contains($requestedSheet)) {
+            Add-WarningMessage -Warnings $warnings -Message ("Requested sheet was not found: {0}" -f $requestedSheet)
+        }
+    }
+
+    foreach ($excludedSheet in $excludedSheets) {
+        if (-not $availableSheets.Contains($excludedSheet)) {
+            Add-WarningMessage -Warnings $warnings -Message ("Excluded sheet was not found: {0}" -f $excludedSheet)
+        }
+    }
+
     $workbookPayload = [ordered]@{
         generated_at = Get-TimestampJst
         generator = 'Excel2LLM PowerShell Extractor'
@@ -229,10 +339,10 @@ try {
             name = [string]$workbook.Name
             path = if ($RedactPaths) { [System.IO.Path]::GetFileName($resolvedExcelPath) } else { $resolvedExcelPath }
             extension = [System.IO.Path]::GetExtension($resolvedExcelPath)
-            sheet_count = [int]$workbook.Worksheets.Count
+            sheet_count = $sheetEntries.Count
             has_vba = @('.xlsm', '.xlam') -contains ([System.IO.Path]::GetExtension($resolvedExcelPath).ToLowerInvariant())
         }
-        sheets = $sheets
+        sheets = $sheetEntries
         cells = $cells
         merged_ranges = $mergedRanges
     }
@@ -253,23 +363,43 @@ try {
         warnings = $warnings
         workbook_path = if ($RedactPaths) { [System.IO.Path]::GetFileName($resolvedExcelPath) } else { $resolvedExcelPath }
         output_directory = if ($RedactPaths) { [string](Split-Path -Path $resolvedOutputDir -Leaf) } else { $resolvedOutputDir }
-        sheet_count = [int]$workbook.Worksheets.Count
+        source_sheet_count = $sourceSheetCount
+        sheet_count = $sheetEntries.Count
         cell_count = $totalCellCount
         formula_count = $totalFormulaCount
         merged_range_count = $mergedRanges.Count
         style_export_status = $styleStatus
         verify_status = 'not_run'
+        sheet_filter = [ordered]@{
+            include = @($requestedSheets)
+            exclude = @($excludedSheets)
+            selected = @($selectedSheets | Sort-Object)
+        }
     }
 
     Write-JsonFile -Data $workbookPayload -Path $workbookJsonPath
     Write-JsonFile -Data $stylePayload -Path $stylesJsonPath
     Write-JsonFile -Data $manifestPayload -Path $manifestJsonPath
 
+    $warningSummary = if ($warnings.Count -eq 0) { 'なし' } else { [string]$warnings.Count }
+    Write-Host '=== Excel2LLM 抽出結果 ==='
+    Write-Host ('  対象ファイル: {0}' -f [System.IO.Path]::GetFileName($resolvedExcelPath))
+    Write-Host ('  処理シート:  {0} / {1}' -f $sheetEntries.Count, $sourceSheetCount)
+    Write-Host ('  セル数:      {0}' -f $totalCellCount)
+    Write-Host ('  数式数:      {0}' -f $totalFormulaCount)
+    Write-Host ('  結合セル:    {0}' -f $mergedRanges.Count)
+    Write-Host ('  警告:        {0}' -f $warningSummary)
+    Write-Host ('  出力先:      {0}' -f $workbookJsonPath)
+    Write-NextStepBlock -Steps @(
+        ('run_pack.bat "{0}"' -f $workbookJsonPath),
+        ('重要な資料なら run_verify.bat "{0}" -WorkbookJsonPath "{1}"' -f $resolvedExcelPath, $workbookJsonPath)
+    )
     Write-Host "Extracted workbook.json -> $workbookJsonPath"
     Write-Host "Extracted styles.json   -> $stylesJsonPath"
     Write-Host "Extracted manifest.json -> $manifestJsonPath"
 }
 catch {
+    Write-ErrorRecoverySteps -CommandName 'extract'
     throw "extract_excel.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
 }
 finally {

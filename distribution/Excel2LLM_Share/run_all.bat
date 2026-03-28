@@ -9,16 +9,17 @@ if /I "%~1"=="-h" goto :usage
 if /I "%~1"=="--help" goto :usage
 if /I "%~1"=="/?" goto :usage
 
-"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\pack_for_llm.ps1" %*
+"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\run_all.ps1" %*
 exit /b %errorlevel%
 
 :usage
-echo Usage: run_pack.bat "output\workbook.json" [options]
+echo Usage: run_all.bat "C:\path\to\book.xlsx" [-Verify] [extract options]
 echo.
 echo Common options:
-echo   -ChunkBy sheet
-echo   -ChunkBy range -MaxCells 300
-echo   -IncludeStyles
+echo   -Verify
+echo   -OutputDir "C:\path\to\output"
+echo   -RedactPaths
+echo   -Sheets Summary,Calc
 echo.
 echo See: docs\guides\MANUAL.md or docs\guides\USER_GUIDE.md
 exit /b 1

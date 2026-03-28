@@ -714,10 +714,15 @@ try {
 
     Write-JsonFile -Data $reportPayload -Path $rebuildReportPath
 
+    Write-NextStepBlock -Steps @(
+        ('復元した Excel を開いて確認する: {0}' -f $resolvedOutputPath),
+        ('必要なら run_extract.bat "{0}"' -f $resolvedOutputPath)
+    )
     Write-Host "Rebuilt workbook     -> $resolvedOutputPath"
     Write-Host "Rebuild report.json -> $rebuildReportPath"
 }
 catch {
+    Write-ErrorRecoverySteps -CommandName 'rebuild'
     throw "rebuild_excel.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
 }
 finally {

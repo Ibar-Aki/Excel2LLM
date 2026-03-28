@@ -9,16 +9,17 @@ if /I "%~1"=="-h" goto :usage
 if /I "%~1"=="--help" goto :usage
 if /I "%~1"=="/?" goto :usage
 
-"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\excel_verify.ps1" %*
+"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\run_prompt_bundle.ps1" %*
 exit /b %errorlevel%
 
 :usage
-echo Usage: run_verify.bat "C:\path\to\book.xlsx" [options]
+echo Usage: run_prompt_bundle.bat -Scenario general [options]
 echo.
 echo Common options:
+echo   -Scenario general^|mechanical^|accounting
 echo   -WorkbookJsonPath "output\workbook.json"
-echo   -RedactPaths
-echo   -AllowWorkbookMacros
+echo   -JsonlPath "output\llm_package.jsonl"
+echo   -OutputDir "output\prompt_bundle"
 echo.
-echo See: docs\guides\MANUAL.md or docs\guides\USER_GUIDE.md
+echo See: docs\guides\USER_GUIDE.md
 exit /b 1

@@ -10,8 +10,39 @@ $domainSampleScript = Join-Path $projectRoot 'scripts\create_domain_sample_workb
 $promptBundleScript = Join-Path $projectRoot 'scripts\export_prompt_bundle.ps1'
 $acceptanceScript = Join-Path $projectRoot 'scripts\run_domain_acceptance.ps1'
 $sharePackageScript = Join-Path $projectRoot 'scripts\build_share_package.ps1'
+$runExtractBat = Join-Path $projectRoot 'run_extract.bat'
+$runPackBat = Join-Path $projectRoot 'run_pack.bat'
+$runVerifyBat = Join-Path $projectRoot 'run_verify.bat'
+$runRebuildBat = Join-Path $projectRoot 'run_rebuild.bat'
+$runAllBat = Join-Path $projectRoot 'run_all.bat'
+$runPromptBundleBat = Join-Path $projectRoot 'run_prompt_bundle.bat'
 
 Describe 'Excel2LLM integration tests' {
+    It 'shows usage help from bat entrypoints instead of falling into PowerShell mandatory prompts' {
+        $batCases = @(
+            @{ Path = $runExtractBat; Usage = 'Usage: run_extract.bat' }
+            @{ Path = $runPackBat; Usage = 'Usage: run_pack.bat' }
+            @{ Path = $runVerifyBat; Usage = 'Usage: run_verify.bat' }
+            @{ Path = $runRebuildBat; Usage = 'Usage: run_rebuild.bat' }
+            @{ Path = $runAllBat; Usage = 'Usage: run_all.bat' }
+            @{ Path = $runPromptBundleBat; Usage = 'Usage: run_prompt_bundle.bat' }
+        )
+
+        foreach ($batCase in $batCases) {
+            $usagePattern = [regex]::Escape([string]$batCase.Usage)
+            $noArgOutput = & cmd.exe /d /c """$($batCase.Path)""" 2>&1 | Out-String
+            $LASTEXITCODE | Should Be 1
+            $noArgOutput | Should Match $usagePattern
+            $noArgOutput | Should Match 'docs\\guides\\'
+
+            foreach ($helpSwitch in @('-h', '--help', '/?')) {
+                $helpOutput = & cmd.exe /d /c """$($batCase.Path)"" $helpSwitch" 2>&1 | Out-String
+                $LASTEXITCODE | Should Be 1
+                $helpOutput | Should Match $usagePattern
+            }
+        }
+    }
+
     It 'extracts workbook metadata, formulas, merge information, and xlsm VBA metadata' {
         $workspace = New-TestWorkspace -Name 'extract'
         $samplesDir = Join-Path $workspace 'samples'
@@ -38,6 +69,105 @@ Describe 'Excel2LLM integration tests' {
         $xlsmWorkbookJson.workbook.has_vba | Should Be $true
     }
 
+    It 'prints human-friendly summaries for extract, pack, and verify commands' {
+        $workspace = New-TestWorkspace -Name 'console-summaries'
+        $samplesDir = Join-Path $workspace 'samples'
+        $outputDir = Join-Path $workspace 'output'
+        $jsonlPath = Join-Path $workspace 'llm_package.jsonl'
+        $bookPath = Join-Path $samplesDir 'sample.xlsx'
+        $workbookJsonPath = Join-Path $outputDir 'workbook.json'
+
+        & $sampleScript -OutputDir $samplesDir
+
+        $extractOutput = & cmd.exe /d /c """$runExtractBat"" ""$bookPath"" -OutputDir ""$outputDir""" 2>&1 | Out-String
+        $packOutput = & cmd.exe /d /c """$runPackBat"" ""$workbookJsonPath"" -OutputPath ""$jsonlPath""" 2>&1 | Out-String
+        $verifyOutput = & cmd.exe /d /c """$runVerifyBat"" ""$bookPath"" -WorkbookJsonPath ""$workbookJsonPath"" -OutputDir ""$outputDir""" 2>&1 | Out-String
+
+        $extractOutput | Should Match '=== Excel2LLM 抽出結果 ==='
+        $extractOutput | Should Match '処理シート:'
+        $extractOutput | Should Match '数式数:'
+        $extractOutput | Should Match '=== 次のおすすめ ==='
+        $packOutput | Should Match '=== パッキング結果 ==='
+        $packOutput | Should Match 'チャンク数:'
+        $packOutput | Should Match '最大トークン推定:'
+        $packOutput | Should Match '=== 次のおすすめ ==='
+        $verifyOutput | Should Match '=== 検証結果 ==='
+        $verifyOutput | Should Match 'mismatch_count: 0'
+        $verifyOutput | Should Match '=== 次のおすすめ ==='
+    }
+
+    It 'runs run_all.bat end-to-end and supports optional verify mode' {
+        $workspace = New-TestWorkspace -Name 'run-all'
+        $samplesDir = Join-Path $workspace 'samples'
+        $outputDir = Join-Path $workspace 'output'
+        $bookPath = Join-Path $samplesDir 'sample.xlsx'
+
+        & $sampleScript -OutputDir $samplesDir
+
+        $runAllOutput = & cmd.exe /d /c """$runAllBat"" ""$bookPath"" -OutputDir ""$outputDir""" 2>&1 | Out-String
+        $runAllVerifyOutput = & cmd.exe /d /c """$runAllBat"" ""$bookPath"" -Verify -OutputDir ""$outputDir""" 2>&1 | Out-String
+
+        (Test-Path -LiteralPath (Join-Path $outputDir 'workbook.json')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outputDir 'llm_package.jsonl')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outputDir 'verify_report.json')) | Should Be $true
+        $runAllOutput | Should Match '=== 一括実行結果 ==='
+        $runAllOutput | Should Match 'LLM に渡す対象:'
+        $runAllVerifyOutput | Should Match 'verify 実行: あり'
+    }
+
+    It 'propagates verify security flags through run_all.bat' {
+        $workspace = New-TestWorkspace -Name 'run-all-security'
+        $bookPath = Join-Path $workspace 'security.xlsx'
+        $outputDir = Join-Path $workspace 'output'
+
+        New-MiniWorkbook -Path $bookPath
+
+        & cmd.exe /d /c """$runAllBat"" ""$bookPath"" -Verify -RedactPaths -AllowWorkbookMacros -OutputDir ""$outputDir""" | Out-Null
+
+        $LASTEXITCODE | Should Be 0
+
+        $workbookJson = Get-Content -LiteralPath (Join-Path $outputDir 'workbook.json') -Raw | ConvertFrom-Json
+        $verifyReport = Get-Content -LiteralPath (Join-Path $outputDir 'verify_report.json') -Raw | ConvertFrom-Json
+        $workbookJson.workbook.sheet_count | Should Be 1
+        $verifyReport.workbook_path | Should Be 'security.xlsx'
+        $verifyReport.workbook_json_path | Should Be 'workbook.json'
+    }
+
+    It 'runs prompt bundle wrapper with default output files and shows next steps' {
+        $workspace = New-TestWorkspace -Name 'prompt-wrapper'
+        $samplesDir = Join-Path $workspace 'samples'
+        $outputDir = Join-Path $workspace 'output'
+        $bookPath = Join-Path $samplesDir 'sample.xlsx'
+
+        & $sampleScript -OutputDir $samplesDir
+        & $extractScript -ExcelPath $bookPath -OutputDir $outputDir
+        & $packScript -WorkbookJsonPath (Join-Path $outputDir 'workbook.json') -OutputPath (Join-Path $outputDir 'llm_package.jsonl')
+
+        Push-Location $workspace
+        try {
+            $promptOutput = & cmd.exe /d /c """$runPromptBundleBat"" -Scenario general -WorkbookJsonPath ""$outputDir\workbook.json"" -JsonlPath ""$outputDir\llm_package.jsonl"" -OutputDir ""$outputDir\prompt_bundle""" 2>&1 | Out-String
+        }
+        finally {
+            Pop-Location
+        }
+
+        (Test-Path -LiteralPath (Join-Path $outputDir 'prompt_bundle\prompt_bundle_manifest.json')) | Should Be $true
+        $promptOutput | Should Match '=== Prompt Bundle 結果 ==='
+        $promptOutput | Should Match '=== 次のおすすめ ==='
+    }
+
+    It 'prints numbered Japanese recovery steps on command failure' {
+        $workspace = New-TestWorkspace -Name 'error-guidance'
+        $missingPath = Join-Path $workspace 'missing.xlsx'
+
+        $output = & cmd.exe /d /c """$runAllBat"" ""$missingPath""" 2>&1 | Out-String
+
+        $LASTEXITCODE | Should Not Be 0
+        $output | Should Match '1\. Excel を閉じる'
+        $output | Should Match '2\. コマンドをもう一度実行する'
+        $output | Should Match '3\. まだダメなら run_self_test\.bat'
+    }
+
     It 'supports path redaction and explicit macro opt-in for extract and verify flows' {
         $workspace = New-TestWorkspace -Name 'security-options'
         $bookPath = Join-Path $workspace 'security.xlsx'
@@ -45,7 +175,7 @@ Describe 'Excel2LLM integration tests' {
 
         New-MiniWorkbook -Path $bookPath
         & $extractScript -ExcelPath $bookPath -OutputDir $outputDir -RedactPaths -AllowWorkbookMacros
-        & $verifyScript -ExcelPath $bookPath -WorkbookJsonPath (Join-Path $outputDir 'workbook.json') -OutputDir $outputDir -AllowWorkbookMacros
+        & $verifyScript -ExcelPath $bookPath -WorkbookJsonPath (Join-Path $outputDir 'workbook.json') -OutputDir $outputDir -AllowWorkbookMacros -RedactPaths
 
         $workbookJson = Get-Content -LiteralPath (Join-Path $outputDir 'workbook.json') -Raw | ConvertFrom-Json
         $manifest = Get-Content -LiteralPath (Join-Path $outputDir 'manifest.json') -Raw | ConvertFrom-Json
@@ -54,7 +184,63 @@ Describe 'Excel2LLM integration tests' {
         $workbookJson.workbook.path | Should Be 'security.xlsx'
         $manifest.workbook_path | Should Be 'security.xlsx'
         $manifest.output_directory | Should Be 'output'
+        $verifyReport.workbook_path | Should Be 'security.xlsx'
+        $verifyReport.workbook_json_path | Should Be 'workbook.json'
         $verifyReport.status | Should Be 'success'
+    }
+
+    It 'filters extracted sheets and keeps downstream pack and verify consistent' {
+        $workspace = New-TestWorkspace -Name 'sheet-filters'
+        $samplesDir = Join-Path $workspace 'samples'
+        $outputDir = Join-Path $workspace 'output'
+        $jsonlPath = Join-Path $workspace 'filtered.jsonl'
+
+        & $sampleScript -OutputDir $samplesDir
+        & $extractScript -ExcelPath (Join-Path $samplesDir 'sample.xlsx') -OutputDir $outputDir -Sheets @('Summary', 'Calc', 'MissingSheet') -ExcludeSheets @('Calc', 'GhostSheet')
+        & $packScript -WorkbookJsonPath (Join-Path $outputDir 'workbook.json') -OutputPath $jsonlPath -ChunkBy sheet -MaxCells 20
+        & $verifyScript -ExcelPath (Join-Path $samplesDir 'sample.xlsx') -WorkbookJsonPath (Join-Path $outputDir 'workbook.json') -OutputDir $outputDir
+
+        $workbookJson = Get-Content -LiteralPath (Join-Path $outputDir 'workbook.json') -Raw | ConvertFrom-Json
+        $manifest = Get-Content -LiteralPath (Join-Path $outputDir 'manifest.json') -Raw | ConvertFrom-Json
+        $verifyReport = Get-Content -LiteralPath (Join-Path $outputDir 'verify_report.json') -Raw | ConvertFrom-Json
+        $chunks = @(Get-Content -LiteralPath $jsonlPath | ForEach-Object { $_ | ConvertFrom-Json })
+        $chunkSheetNames = @($chunks | Select-Object -ExpandProperty sheet_name | Select-Object -Unique)
+
+        $workbookJson.workbook.sheet_count | Should Be 1
+        $workbookJson.sheets[0].sheet_name | Should Be 'Summary'
+        $manifest.source_sheet_count | Should Be 3
+        $manifest.sheet_count | Should Be 1
+        (@($manifest.sheet_filter.include) -contains 'Summary') | Should Be $true
+        (@($manifest.sheet_filter.include) -contains 'Calc') | Should Be $true
+        (@($manifest.sheet_filter.exclude) -contains 'Calc') | Should Be $true
+        (@($manifest.sheet_filter.selected) -contains 'Summary') | Should Be $true
+        (@($manifest.sheet_filter.selected) -contains 'Calc') | Should Be $false
+        ($manifest.warnings -join ' ') | Should Match 'MissingSheet'
+        ($manifest.warnings -join ' ') | Should Match 'GhostSheet'
+        $chunkSheetNames.Count | Should Be 1
+        $chunkSheetNames[0] | Should Be 'Summary'
+        $verifyReport.status | Should Be 'success'
+    }
+
+    It 'supports comma-delimited sheet filters from bat entrypoints' {
+        $workspace = New-TestWorkspace -Name 'sheet-filters-bat'
+        $samplesDir = Join-Path $workspace 'samples'
+        $outputDir = Join-Path $workspace 'output'
+
+        & $sampleScript -OutputDir $samplesDir
+
+        & cmd.exe /d /c """$runExtractBat"" ""$samplesDir\sample.xlsx"" -OutputDir ""$outputDir"" -Sheets Summary,Calc -ExcludeSheets Calc" | Out-Null
+        $LASTEXITCODE | Should Be 0
+
+        $workbookJson = Get-Content -LiteralPath (Join-Path $outputDir 'workbook.json') -Raw | ConvertFrom-Json
+        $manifest = Get-Content -LiteralPath (Join-Path $outputDir 'manifest.json') -Raw | ConvertFrom-Json
+
+        $workbookJson.workbook.sheet_count | Should Be 1
+        $workbookJson.sheets[0].sheet_name | Should Be 'Summary'
+        (@($manifest.sheet_filter.include) -contains 'Summary') | Should Be $true
+        (@($manifest.sheet_filter.include) -contains 'Calc') | Should Be $true
+        (@($manifest.sheet_filter.selected) -contains 'Summary') | Should Be $true
+        (@($manifest.sheet_filter.selected) -contains 'Calc') | Should Be $false
     }
 
     It 'differentiates sheet chunking from range chunking' {
@@ -257,6 +443,27 @@ Describe 'Excel2LLM integration tests' {
         (Test-Path -LiteralPath $manifest.prompts[0].path) | Should Be $true
     }
 
+    It 'redacts prompt bundle manifest paths while keeping cleanup functional' {
+        $workspace = New-TestWorkspace -Name 'prompt-redaction'
+        $samplesDir = Join-Path $workspace 'samples'
+        $extractDir = Join-Path $workspace 'extract'
+        $promptDir = Join-Path $workspace 'prompts'
+
+        & $domainSampleScript -OutputDir $samplesDir -Scenario accounting -Variant original
+        & $extractScript -ExcelPath (Join-Path $samplesDir 'accounting_original.xlsx') -OutputDir $extractDir -RedactPaths
+        & $packScript -WorkbookJsonPath (Join-Path $extractDir 'workbook.json') -OutputPath (Join-Path $extractDir 'llm_package.jsonl') -ChunkBy range -MaxCells 120
+        & $promptBundleScript -WorkbookJsonPath (Join-Path $extractDir 'workbook.json') -JsonlPath (Join-Path $extractDir 'llm_package.jsonl') -Scenario accounting -OutputDir $promptDir -RedactPaths
+        & $promptBundleScript -WorkbookJsonPath (Join-Path $extractDir 'workbook.json') -JsonlPath (Join-Path $extractDir 'llm_package.jsonl') -Scenario accounting -OutputDir $promptDir -RedactPaths
+
+        $manifest = Get-Content -LiteralPath (Join-Path $promptDir 'prompt_bundle_manifest.json') -Raw | ConvertFrom-Json
+        $firstPrompt = $manifest.prompts | Select-Object -First 1
+
+        $manifest.workbook_json_path | Should Be 'workbook.json'
+        $manifest.jsonl_path | Should Be 'llm_package.jsonl'
+        [System.IO.Path]::IsPathRooted([string]$firstPrompt.path) | Should Be $false
+        (Test-Path -LiteralPath (Join-Path $promptDir ([string]$firstPrompt.path))) | Should Be $true
+    }
+
     It 'does not delete files outside the prompt output directory when manifest paths are tampered' {
         $workspace = New-TestWorkspace -Name 'prompt-cleanup-guard'
         $samplesDir = Join-Path $workspace 'samples'
@@ -309,6 +516,9 @@ Describe 'Excel2LLM integration tests' {
         (@($shareManifest.PSObject.Properties.Name) -contains 'output_directory') | Should Be $false
         $shareManifest.package_name | Should Be 'share-package'
         (Test-Path -LiteralPath (Join-Path $outsideDir 'README.md')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'GETTING_STARTED.md')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'run_all.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'run_prompt_bundle.bat')) | Should Be $true
     }
 
     It 'runs domain acceptance workflow for accounting original sample' {

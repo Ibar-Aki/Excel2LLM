@@ -45,11 +45,14 @@ foreach ($directory in $directories) {
 }
 
 $filesToCopy = @(
+    'GETTING_STARTED.md',
     'README.md',
+    'run_all.bat',
     'run_build_share_package.bat',
     'run_domain_acceptance.bat',
     'run_extract.bat',
     'run_pack.bat',
+    'run_prompt_bundle.bat',
     'run_rebuild.bat',
     'run_self_test.bat',
     'run_verify.bat',
@@ -72,7 +75,9 @@ $filesToCopy = @(
     'scripts\extract_excel.ps1',
     'scripts\pack_for_llm.ps1',
     'scripts\rebuild_excel.ps1',
+    'scripts\run_all.ps1',
     'scripts\run_domain_acceptance.ps1',
+    'scripts\run_prompt_bundle.ps1',
     'scripts\run_self_test.ps1',
     'templates\Excel2LLM_Helper.bas'
 )

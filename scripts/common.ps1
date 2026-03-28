@@ -68,13 +68,114 @@ function Write-JsonLineFile {
     }
 }
 
+function Get-RangeMatrixValue {
+    param(
+        $Matrix,
+        [Parameter(Mandatory)]
+        [int]$RowOffset,
+        [Parameter(Mandatory)]
+        [int]$ColumnOffset,
+        [Parameter(Mandatory)]
+        [int]$RowCount,
+        [Parameter(Mandatory)]
+        [int]$ColumnCount
+    )
+
+    if ($null -eq $Matrix -or $Matrix -is [System.DBNull]) {
+        return $null
+    }
+
+    if ($Matrix -isnot [System.Array]) {
+        if ($RowOffset -eq 1 -and $ColumnOffset -eq 1) {
+            return $Matrix
+        }
+
+        return $null
+    }
+
+    if ($Matrix.Rank -eq 2) {
+        $rowIndex = $Matrix.GetLowerBound(0) + $RowOffset - 1
+        $columnIndex = $Matrix.GetLowerBound(1) + $ColumnOffset - 1
+        return $Matrix.GetValue($rowIndex, $columnIndex)
+    }
+
+    if ($Matrix.Rank -eq 1) {
+        $index = $Matrix.GetLowerBound(0)
+        if ($RowCount -eq 1) {
+            $index += $ColumnOffset - 1
+        }
+        elseif ($ColumnCount -eq 1) {
+            $index += $RowOffset - 1
+        }
+        elseif ($RowOffset -ne 1 -or $ColumnOffset -ne 1) {
+            return $null
+        }
+
+        return $Matrix.GetValue($index)
+    }
+
+    return $null
+}
+
+function Convert-FormulaValue {
+    param(
+        $Value
+    )
+
+    if ($null -eq $Value -or $Value -is [System.DBNull]) {
+        return $null
+    }
+
+    $formulaText = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($formulaText)) {
+        return $null
+    }
+
+    if ($formulaText.StartsWith('=')) {
+        return $formulaText
+    }
+
+    return $null
+}
+
 function Get-TimestampJst {
     return (Get-Date).ToString("yyyy-MM-dd HH:mm 'JST'")
+}
+
+function Write-NextStepBlock {
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$Steps,
+        [string]$Title = '次のおすすめ'
+    )
+
+    $normalizedSteps = @($Steps | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($normalizedSteps.Count -eq 0) {
+        return
+    }
+
+    Write-Host ('=== {0} ===' -f $Title)
+    foreach ($step in $normalizedSteps) {
+        Write-Host ('  - {0}' -f [string]$step)
+    }
+}
+
+function Write-ErrorRecoverySteps {
+    param(
+        [string]$CommandName = 'このコマンド'
+    )
+
+    Write-Host ('{0} の実行中にエラーが発生しました。' -f $CommandName)
+    Write-Host '対処の目安:'
+    Write-Host '  1. Excel を閉じる'
+    Write-Host '  2. コマンドをもう一度実行する'
+    Write-Host '  3. まだダメなら run_self_test.bat を実行する'
 }
 
 function Group-CellsBySheet {
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [object[]]$Cells
     )
 

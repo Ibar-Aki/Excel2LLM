@@ -134,81 +134,102 @@ function Add-ChunkRecord {
     $ChunkIndex.Value++
 }
 
-$resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
-$workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
-$styleLookup = @{}
-$cellsBySheet = Group-CellsBySheet -Cells @($workbookData.cells)
+try {
+    $resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
+    $workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
+    $styleLookup = @{}
+    $cellsBySheet = Group-CellsBySheet -Cells @($workbookData.cells)
 
-if ($IncludeStyles -and (Test-Path -LiteralPath $StylesJsonPath)) {
-    $stylesData = Get-Content -LiteralPath $StylesJsonPath -Raw | ConvertFrom-Json
-    foreach ($style in $stylesData.styles) {
-        $styleLookup['{0}|{1}' -f $style.sheet, $style.address] = [ordered]@{
-            fill_color = $style.fill_color
-            font_color = $style.font_color
-            horizontal_alignment = $style.horizontal_alignment
-            vertical_alignment = $style.vertical_alignment
-            wrap_text = $style.wrap_text
-            borders = $style.borders
-        }
-    }
-}
-
-$chunks = New-Object System.Collections.Generic.List[object]
-$chunkIndex = 0
-
-foreach ($sheet in $workbookData.sheets) {
-    if (-not $cellsBySheet.ContainsKey([string]$sheet.sheet_name)) {
-        continue
-    }
-
-    $sheetCells = @($cellsBySheet[[string]$sheet.sheet_name] | Sort-Object row, column)
-    if ($sheetCells.Count -eq 0) {
-        continue
-    }
-
-    if ($ChunkBy -eq 'range') {
-        for ($offset = 0; $offset -lt $sheetCells.Count; $offset += $MaxCells) {
-            $upperBound = [Math]::Min($offset + $MaxCells - 1, $sheetCells.Count - 1)
-            $chunkCells = @($sheetCells[$offset..$upperBound])
-            Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $chunkCells -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
-        }
-        continue
-    }
-
-    $rowGroups = @($sheetCells | Group-Object row | Sort-Object { [int]$_.Name })
-    $currentChunk = New-Object System.Collections.Generic.List[object]
-    foreach ($rowGroup in $rowGroups) {
-        $rowCells = @($rowGroup.Group | Sort-Object column)
-
-        if ($currentChunk.Count -gt 0 -and ($currentChunk.Count + $rowCells.Count) -gt $MaxCells) {
-            Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
-            $currentChunk = New-Object System.Collections.Generic.List[object]
-        }
-
-        if ($rowCells.Count -gt $MaxCells) {
-            if ($currentChunk.Count -gt 0) {
-                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
-                $currentChunk = New-Object System.Collections.Generic.List[object]
+    if ($IncludeStyles -and (Test-Path -LiteralPath $StylesJsonPath)) {
+        $stylesData = Get-Content -LiteralPath $StylesJsonPath -Raw | ConvertFrom-Json
+        foreach ($style in $stylesData.styles) {
+            $styleLookup['{0}|{1}' -f $style.sheet, $style.address] = [ordered]@{
+                fill_color = $style.fill_color
+                font_color = $style.font_color
+                horizontal_alignment = $style.horizontal_alignment
+                vertical_alignment = $style.vertical_alignment
+                wrap_text = $style.wrap_text
+                borders = $style.borders
             }
+        }
+    }
 
-            for ($offset = 0; $offset -lt $rowCells.Count; $offset += $MaxCells) {
-                $upperBound = [Math]::Min($offset + $MaxCells - 1, $rowCells.Count - 1)
-                $rowSlice = @($rowCells[$offset..$upperBound])
-                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $rowSlice -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+    $chunks = New-Object System.Collections.Generic.List[object]
+    $chunkIndex = 0
+
+    foreach ($sheet in $workbookData.sheets) {
+        if (-not $cellsBySheet.ContainsKey([string]$sheet.sheet_name)) {
+            continue
+        }
+
+        $sheetCells = @($cellsBySheet[[string]$sheet.sheet_name] | Sort-Object row, column)
+        if ($sheetCells.Count -eq 0) {
+            continue
+        }
+
+        if ($ChunkBy -eq 'range') {
+            for ($offset = 0; $offset -lt $sheetCells.Count; $offset += $MaxCells) {
+                $upperBound = [Math]::Min($offset + $MaxCells - 1, $sheetCells.Count - 1)
+                $chunkCells = @($sheetCells[$offset..$upperBound])
+                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $chunkCells -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
             }
             continue
         }
 
-        foreach ($cell in $rowCells) {
-            [void]$currentChunk.Add($cell)
+        $rowGroups = @($sheetCells | Group-Object row | Sort-Object { [int]$_.Name })
+        $currentChunk = New-Object System.Collections.Generic.List[object]
+        foreach ($rowGroup in $rowGroups) {
+            $rowCells = @($rowGroup.Group | Sort-Object column)
+
+            if ($currentChunk.Count -gt 0 -and ($currentChunk.Count + $rowCells.Count) -gt $MaxCells) {
+                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+                $currentChunk = New-Object System.Collections.Generic.List[object]
+            }
+
+            if ($rowCells.Count -gt $MaxCells) {
+                if ($currentChunk.Count -gt 0) {
+                    Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+                    $currentChunk = New-Object System.Collections.Generic.List[object]
+                }
+
+                for ($offset = 0; $offset -lt $rowCells.Count; $offset += $MaxCells) {
+                    $upperBound = [Math]::Min($offset + $MaxCells - 1, $rowCells.Count - 1)
+                    $rowSlice = @($rowCells[$offset..$upperBound])
+                    Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $rowSlice -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+                }
+                continue
+            }
+
+            foreach ($cell in $rowCells) {
+                [void]$currentChunk.Add($cell)
+            }
+        }
+
+        if ($currentChunk.Count -gt 0) {
+            Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
         }
     }
 
-    if ($currentChunk.Count -gt 0) {
-        Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
-    }
+    Ensure-Directory -Path (Split-Path -Path $OutputPath -Parent)
+    Write-JsonLineFile -Items $chunks -Path $OutputPath
+    $chunkArray = @($chunks.ToArray())
+    $chunkCount = $chunkArray.Count
+    $cellCounts = @($chunkArray | ForEach-Object { $_.cell_addresses.Count })
+    $tokenEstimates = @($chunkArray | ForEach-Object { $_.token_estimate })
+    $averageCellCount = if ($chunkCount -eq 0) { 0 } else { [Math]::Round((($cellCounts | Measure-Object -Average).Average), 2) }
+    $maxTokenEstimate = if ($chunkCount -eq 0) { 0 } else { ($tokenEstimates | Measure-Object -Maximum).Maximum }
+    Write-Host '=== パッキング結果 ==='
+    Write-Host ('  チャンク数:       {0}' -f $chunkCount)
+    Write-Host ('  チャンク方式:     {0}' -f $ChunkBy)
+    Write-Host ('  平均セル数:       {0}' -f $averageCellCount)
+    Write-Host ('  最大トークン推定: {0}' -f $maxTokenEstimate)
+    Write-Host ('  出力:             {0}' -f $OutputPath)
+    Write-NextStepBlock -Steps @(
+        ('llm_package.jsonl から必要チャンクを LLM に渡す: {0}' -f $OutputPath)
+    )
+    Write-Host "Packed llm_package.jsonl -> $OutputPath"
 }
-
-Ensure-Directory -Path (Split-Path -Path $OutputPath -Parent)
-Write-JsonLineFile -Items $chunks -Path $OutputPath
-Write-Host "Packed llm_package.jsonl -> $OutputPath"
+catch {
+    Write-ErrorRecoverySteps -CommandName 'pack'
+    throw "pack_for_llm.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
+}

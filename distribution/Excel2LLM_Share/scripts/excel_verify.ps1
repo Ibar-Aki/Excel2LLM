@@ -4,7 +4,8 @@ param(
     [string]$ExcelPath,
     [string]$WorkbookJsonPath,
     [string]$OutputDir,
-    [switch]$AllowWorkbookMacros
+    [switch]$AllowWorkbookMacros,
+    [switch]$RedactPaths
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -101,8 +102,8 @@ try {
         generated_at = Get-TimestampJst
         generator = 'Excel2LLM PowerShell Verifier'
         status = $verifyStatus
-        workbook_path = $resolvedExcelPath
-        workbook_json_path = $resolvedWorkbookJsonPath
+        workbook_path = if ($RedactPaths) { [System.IO.Path]::GetFileName($resolvedExcelPath) } else { $resolvedExcelPath }
+        workbook_json_path = if ($RedactPaths) { [System.IO.Path]::GetFileName($resolvedWorkbookJsonPath) } else { $resolvedWorkbookJsonPath }
         mismatch_count = $mismatches.Count
         warnings = $warnings
         mismatches = $mismatches
@@ -136,9 +137,31 @@ try {
         Write-JsonFile -Data $manifest -Path $manifestPath
     }
 
+    $warningSummary = if ($warnings.Count -eq 0) { 'なし' } else { [string]$warnings.Count }
+    Write-Host '=== 検証結果 ==='
+    if ($mismatches.Count -eq 0) {
+        Write-Host ('  差分:        なし (mismatch_count: {0})' -f $mismatches.Count)
+    }
+    else {
+        Write-Host ('  差分:        あり (mismatch_count: {0})' -f $mismatches.Count)
+    }
+    Write-Host ('  警告:        {0}' -f $warningSummary)
+    Write-Host ('  詳細:        {0}' -f $verifyReportPath)
+    if ($mismatches.Count -eq 0 -and $warnings.Count -eq 0) {
+        Write-NextStepBlock -Steps @(
+            ('run_pack.bat "{0}"' -f $resolvedWorkbookJsonPath)
+        )
+    }
+    else {
+        Write-NextStepBlock -Steps @(
+            ('verify_report.json を確認する: {0}' -f $verifyReportPath),
+            ('差分解消後に run_pack.bat "{0}"' -f $resolvedWorkbookJsonPath)
+        )
+    }
     Write-Host "Verified workbook -> $verifyReportPath"
 }
 catch {
+    Write-ErrorRecoverySteps -CommandName 'verify'
     throw "excel_verify.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
 }
 finally {

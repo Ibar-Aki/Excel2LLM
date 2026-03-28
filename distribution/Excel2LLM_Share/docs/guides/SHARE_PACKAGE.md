@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-12 00:25 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-12
+- 更新日: 2026-03-28
 
 ## この文書の目的
 
@@ -46,6 +46,7 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 - 実行に必要な `bat`
 - 実行に必要な `scripts`
 - 利用者向けの `docs`
+- 配布先の最初の案内 `GETTING_STARTED.md`
 - `templates`
 - 空の `output`
 - 空の `samples`
@@ -64,7 +65,9 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 配布先では、そのフォルダの中で次を使えば動作します。
 
 - `run_extract.bat`
+- `run_all.bat`
 - `run_pack.bat`
+- `run_prompt_bundle.bat`
 - `run_verify.bat`
 - `run_rebuild.bat`
 
@@ -72,10 +75,11 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 
 推奨順は次です。
 
-1. `README.md`
-2. `docs\guides\MANUAL.md`
-3. `docs\guides\USER_GUIDE.md`
-4. `docs\reference\LLM_PROMPT_FORMATS.md`
+1. `GETTING_STARTED.md`
+2. `README.md`
+3. `docs\guides\MANUAL.md`
+4. `docs\guides\USER_GUIDE.md`
+5. `docs\reference\LLM_PROMPT_FORMATS.md`
 
 ## 注意
 

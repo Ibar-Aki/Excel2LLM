@@ -2,29 +2,37 @@
 
 - 作成日: 2026-03-10 01:30 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-12
+- 更新日: 2026-03-28
 
-## これは何か
+## この文書の役割
 
-`Excel2LLM` は、Excel ブックをそのまま LLM に投げる代わりに、まず欠落の少ない JSON へ変換し、その後に LLM 向けのチャンクへ整形するためのツールです。
+`Excel2LLM` の詳しい使い方をまとめた手順書です。
+最短手順だけ知りたい場合は、先に `MANUAL.md` を読んでください。
 
-最初に全体像をつかみたい場合は、先に `docs/guides/MANUAL.md` を読むことを推奨します。この `USER_GUIDE.md` は、その次に見る詳しめの手引きです。
+## まず理解しておくこと
 
-このツールが特に向いているケース:
+- `workbook.json`
+  - Excel の内容を保存した正本
+- `llm_package.jsonl`
+  - LLM に渡す実用ファイル
+- `verify_report.json`
+  - Excel との突き合わせ結果
+- `styles.json`
+  - 色、罫線、配置などの補助情報
 
-- 数式を落とさずに LLM へ渡したい
-- 複数シートをまとめて扱いたい
-- 結合セルや表示値も保持したい
-- 1 回のプロンプトに入りきらない Excel を安全に分割したい
+## 最短で進めるなら
 
-## 最初に理解しておくこと
+```bat
+run_all.bat "C:\Data\report.xlsx"
+```
 
-- 主データは `workbook.json` です
-- LLM に渡す実用データは `llm_package.jsonl` です
-- 色や罫線は低優先で、必要なときだけ `styles.json` を使います
-- `verify_report.json` は「抽出した JSON と、Excel 再計算後の実データに差がないか」を見るための確認用です
+重要な資料なら:
 
-## 最短手順
+```bat
+run_all.bat "C:\Data\report.xlsx" -Verify
+```
+
+## 基本の流れ
 
 ### 1. Excel を JSON に変換する
 
@@ -32,9 +40,7 @@
 run_extract.bat "C:\Data\report.xlsx"
 ```
 
-既定では、Excel ブックマクロを無効化して開きます。
-
-生成される主なファイル:
+主な出力:
 
 - `output\workbook.json`
 - `output\styles.json`
@@ -43,350 +49,208 @@ run_extract.bat "C:\Data\report.xlsx"
 ### 2. LLM に渡すチャンクを作る
 
 ```bat
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
+run_pack.bat "output\workbook.json"
 ```
 
-生成されるファイル:
+主な出力:
 
 - `output\llm_package.jsonl`
 
-### 3. 必要なら Excel と突き合わせる
+### 3. 重要な資料なら検証する
 
 ```bat
-run_verify.bat "C:\Data\report.xlsx"
+run_verify.bat "C:\Data\report.xlsx" -WorkbookJsonPath "output\workbook.json"
 ```
 
-生成されるファイル:
+主な出力:
 
 - `output\verify_report.json`
 
-### 4. JSON から Excel を逆生成する
+### 4. 必要なら Excel を作り直す
 
 ```bat
-run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
+run_rebuild.bat "output\workbook.json"
 ```
 
-style も戻したい場合:
+### 5. prompt bundle を作る
 
 ```bat
-run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -StylesJsonPath "C:\Work_Codex\Excel2LLM\output\styles.json" -OutputPath "C:\Data\rebuilt.xlsx" -Overwrite
+run_prompt_bundle.bat -Scenario general
 ```
 
-生成されるファイル:
+主な出力:
 
-- `output\rebuilt\*.xlsx`
-- `output\rebuilt\rebuild_report.json`
+- `output\prompt_bundle\prompt_*.txt`
+- `output\prompt_bundle\prompt_bundle_manifest.json`
 
-## どのコマンドを使うべきか
+## run_all の役割
 
-### まず抽出だけしたい
+`run_all.bat` は、`extract -> pack` をまとめて行う入口です。
+
+`-Verify` を付けたときだけ、`verify` を挟みます。
 
 ```bat
-run_extract.bat "C:\Data\book.xlsx"
+run_all.bat "C:\Data\sample.xlsx"
+run_all.bat "C:\Data\sample.xlsx" -Verify
 ```
+
+## 各コマンドの使い分け
+
+### extract
 
 用途:
 
-- 数式や結合セルを欠落なく保存したい
-- まだ LLM に渡す単位を決めていない
-- 後工程で別の変換をしたい
+- Excel の内容を壊れにくい JSON にしたい
+- 数式、表示値、結合セルを保持したい
 
-### LLM に渡しやすい単位に分けたい
+例:
 
 ```bat
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -ChunkBy range -MaxCells 300
+run_extract.bat "C:\Data\sample.xlsx"
+run_extract.bat "C:\Data\sample.xlsx" -CollectStyles
+run_extract.bat "C:\Data\sample.xlsx" -RedactPaths
+run_extract.bat "C:\Data\sample.xlsx" -Sheets Summary,Calc
+run_extract.bat "C:\Data\sample.xlsx" -Sheets Summary,Calc -ExcludeSheets Calc
 ```
+
+補足:
+
+- `-Sheets`
+  - 指定したシートだけ抽出
+- `-ExcludeSheets`
+  - 指定したシートを除外
+- `-RedactPaths`
+  - 出力に絶対パスを残しにくくする
+- `-CollectStyles`
+  - `styles.json` を取得する
+
+### pack
 
 用途:
 
-- 大きな表を小さく分けたい
-- RAG やエージェント処理の入力にしたい
-- シート全体では大きすぎる
+- 大きい Excel を LLM 向けに小分けしたい
 
-### 抽出結果が信用できるか確認したい
+例:
 
 ```bat
-run_verify.bat "C:\Data\book.xlsx" -WorkbookJsonPath "C:\Work_Codex\Excel2LLM\output\workbook.json"
+run_pack.bat "output\workbook.json"
+run_pack.bat "output\workbook.json" -ChunkBy range -MaxCells 300
+run_pack.bat "output\workbook.json" -ChunkBy sheet -IncludeStyles
 ```
+
+補足:
+
+- `-ChunkBy sheet`
+  - 行のまとまりを保ちやすい
+- `-ChunkBy range`
+  - セル数優先で細かく分ける
+
+### verify
 
 用途:
 
-- 数式の再計算結果が心配
-- Excel 側の表示値とのズレを確認したい
-- 重要な資料を LLM に渡す前に検証したい
+- 抽出した JSON と Excel の再計算結果を突き合わせたい
 
-### JSON から Excel を戻したい
+例:
 
 ```bat
-run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
+run_verify.bat "C:\Data\sample.xlsx" -WorkbookJsonPath "output\workbook.json"
+run_verify.bat "C:\Data\sample.xlsx" -WorkbookJsonPath "output\workbook.json" -RedactPaths
 ```
+
+### rebuild
 
 用途:
 
-- LLM や JSON 編集後の内容を Excel へ戻したい
-- 数式、結合セル、hidden 行列、freeze panes を再構築したい
-- style は必要時だけ `styles.json` から戻したい
+- `workbook.json` から `.xlsx` を作り直したい
 
-## よく使うオプション
-
-### `-ChunkBy sheet`
-
-シート単位で考えながら、必要に応じて行境界を保って分割します。
-
-向いているケース:
-
-- 1 シートが 1 トピックになっている
-- 表の行まとまりを壊したくない
-
-### `-ChunkBy range`
-
-セル数ベースで機械的に分割します。
-
-向いているケース:
-
-- とにかく入力サイズを一定にしたい
-- 多少レンジがまたがってもよい
-
-### `-MaxCells`
-
-1 チャンクに入れる最大セル数です。
-
-目安:
-
-- 小さめにしたい: `100` から `300`
-- やや大きめでもよい: `300` から `800`
-
-### `-CollectStyles`
-
-色や罫線などの見た目情報を `styles.json` に出したいときだけ使います。
+例:
 
 ```bat
-run_extract.bat "C:\Data\book.xlsx" -CollectStyles
+run_rebuild.bat "output\workbook.json"
+run_rebuild.bat "output\workbook.json" -StylesJsonPath "output\styles.json" -OutputPath "C:\Data\rebuilt.xlsx" -Overwrite
 ```
 
-注意:
+### prompt bundle
 
-- 既定では style を取りません
-- style 取得は遅くなりやすいです
-- まずは style なしで運用し、必要な案件だけ付けるのが安全です
+用途:
 
-### `-RedactPaths`
+- LLM にそのまま貼りやすい prompt テキストを作りたい
 
-`workbook.json` や `manifest.json` に元 Excel の絶対パスを残したくないときに使います。
+例:
 
 ```bat
-run_extract.bat "C:\Data\book.xlsx" -RedactPaths
+run_prompt_bundle.bat -Scenario general
+run_prompt_bundle.bat -Scenario mechanical
+run_prompt_bundle.bat -Scenario accounting
 ```
 
-### `-AllowWorkbookMacros`
+## ヘルプの見方
 
-既定の安全設定を上書きし、信頼済みブックでだけマクロ実行を許容したいときに使います。
+各 `run_*.bat` は、引数なしでも使い方を表示します。
 
 ```bat
-run_extract.bat "C:\Data\trusted.xlsm" -AllowWorkbookMacros
-run_verify.bat "C:\Data\trusted.xlsm" -AllowWorkbookMacros
+run_all.bat -h
+run_extract.bat -h
+run_pack.bat --help
+run_prompt_bundle.bat -h
+run_verify.bat /?
+run_rebuild.bat -h
 ```
 
-### `-Overwrite`
+## 実行後に見るべきこと
 
-逆生成先の `.xlsx` を上書きするときに使います。
+### extract のあと
 
-```bat
-run_rebuild.bat "C:\Work_Codex\Excel2LLM\output\workbook.json" -Overwrite
-```
+- コンソールの `Excel2LLM 抽出結果`
+- `manifest.json` の `warnings`
+- `workbook.json` の `sheet_count`, `formula_count`
+- 表示された `次のおすすめ`
 
-## 出力ファイルの見方
+### pack のあと
 
-### `workbook.json`
+- コンソールの `パッキング結果`
+- `llm_package.jsonl` のチャンク数
+- 表示された `次のおすすめ`
 
-最重要ファイルです。
+### verify のあと
 
-主に見る項目:
+- コンソールの `検証結果`
+- `verify_report.json` の `mismatch_count`
+- 差分がある場合は `verify_report.json` を開く
 
-- `workbook.sheet_count`
-- `sheets[].sheet_name`
-- `cells[].address`
-- `cells[].value2`
-- `cells[].text`
-- `cells[].formula`
-- `cells[].formula2`
-- `cells[].merge_area`
+## エラー時の見方
 
-使いどころ:
+主要コマンドは、失敗時に次の番号付き案内を表示します。
 
-- 監査用の正本
-- 後続変換の元データ
-- 「どのセルに何が入っていたか」の確認
+1. Excel を閉じる
+2. コマンドをもう一度実行する
+3. まだダメなら `run_self_test.bat`
 
-### `llm_package.jsonl`
+## LLM へ渡すときの考え方
 
-LLM に流し込みやすい実用ファイルです。1 行が 1 チャンクです。
+- まず `llm_package.jsonl` から対象チャンクを選ぶ
+- 数式確認なら `formula` / `formula2` を重視する
+- 表示上の見え方が重要なら `text` を参照する
+- 値の比較や統計は `value2` を基準にする
 
-主に見る項目:
+用途別の指示文は `..\reference\LLM_PROMPT_FORMATS.md` を使ってください。
 
-- `chunk_id`
-- `sheet_name`
-- `range`
-- `payload`
-- `formula_cells`
+## よくあるつまずき
 
-使いどころ:
+### 何から始めればいいかわからない
 
-- RAG の投入
-- エージェントの逐次処理
-- バッチ要約
+1. `run_extract.bat "対象.xlsx"`
+2. `run_pack.bat "output\workbook.json"`
+3. `llm_package.jsonl` を使う
 
-### `manifest.json`
+### コマンドが失敗した
 
-処理の概要が入っています。
+1. まず `run_*.bat -h` で使い方を確認
+2. Excel を閉じて再実行
+3. `output\manifest.json` または `output\verify_report.json` を確認
+4. まだ不明なら `run_self_test.bat` を実行
 
-主に見る項目:
+### 配布用にまとめたい
 
-- `status`
-- `warnings`
-- `formula_count`
-- `merged_range_count`
-- `style_export_status`
-- `verify_status`
-
-### `verify_report.json`
-
-Excel 再計算後との差分です。
-
-主に見る項目:
-
-- `status`
-- `mismatch_count`
-- `mismatches[]`
-
-### `rebuild_report.json`
-
-逆生成の結果です。
-
-主に見る項目:
-
-- `status`
-- `warnings`
-- `output_path`
-- `restored_sheets`
-- `restored_cells`
-- `restored_formulas`
-- `restored_styles`
-
-使いどころ:
-
-- Excel への戻し結果の確認
-- VBA 未復元や style 復元失敗の確認
-- threaded comment が通常コメントへ落ちた件数の確認
-
-## LLM への渡し方
-
-### 方法 1: まず人が確認してから渡す
-
-1. `workbook.json` を作る
-2. `llm_package.jsonl` を作る
-3. 対象チャンクを選ぶ
-4. そのチャンクだけ LLM に渡す
-
-向いているケース:
-
-- 重要資料
-- 財務、契約、見積もり
-- 数式の意味まで確認したい案件
-
-### 方法 2: 全チャンクを順番に処理させる
-
-1. `llm_package.jsonl` を作る
-2. 1 行ずつ LLM やエージェントに渡す
-3. 最後に統合要約を作る
-
-向いているケース:
-
-- 大きいブック
-- 多数シート
-- 定期処理
-
-### 方法 3: `workbook.json` を検索用データにする
-
-1. `workbook.json` を保存する
-2. シート名、セル番地、式、表示値で検索できる形に載せる
-3. 必要箇所だけ LLM に渡す
-
-向いているケース:
-
-- 監査用途
-- FAQ ボット
-- 社内検索
-
-## 推奨プロンプト
-
-用途別にそのまま使える詳しいテンプレートは `docs/reference/LLM_PROMPT_FORMATS.md` を参照してください。ここでは短めの例だけ載せます。
-
-### シート構造を理解させたい
-
-```text
-以下は Excel の正規化データです。sheet_name、range、cells を見て、各シートの役割と主要な数式を説明してください。数式セルは formula または formula2 を優先して参照してください。
-```
-
-### 数式の意味を説明させたい
-
-```text
-以下の Excel チャンクに含まれる formula / formula2 を読み、各数式が何を計算しているか、入力セルと出力セルの関係を日本語で整理してください。
-```
-
-### 表を要約させたい
-
-```text
-以下の Excel チャンクを読み、列の意味、重要な行、異常値の可能性を要約してください。text と value2 の違いがある場合はその差も指摘してください。
-```
-
-## トラブルシューティング
-
-### `styles.json` が空
-
-正常です。既定では style を取りません。
-
-必要なら:
-
-```bat
-run_extract.bat "C:\Data\book.xlsx" -CollectStyles
-```
-
-### `verify_report.json` で差分が出た
-
-確認ポイント:
-
-- Excel を開いた直後に再計算が必要なブックか
-- 外部参照や volatile 関数があるか
-- 手入力後に保存していない変更があったか
-
-### 出力が大きすぎる
-
-対策:
-
-- `run_pack.bat` で `-MaxCells` を小さくする
-- `-ChunkBy range` を使う
-- 必要シートだけ別ファイルで処理する
-
-### 期待したセルが見つからない
-
-確認ポイント:
-
-- そのセルが `UsedRange` の外ではないか
-- 非表示でも実際に使用されているセルか
-- 数式結果だけでなく `formula` や `formula2` も見ているか
-
-### 配布用フォルダの再生成でエラーになる
-
-既定では `distribution\` 配下しか安全に削除しません。配下外を使う場合は、次のように明示します。
-
-```bat
-run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDistribution -ForceCleanOutputDir
-```
-
-## 運用のおすすめ
-
-- まずは `run_extract.bat` と `run_pack.bat` だけで始める
-- 重要案件だけ `run_verify.bat` を併用する
-- 色や罫線は必要になってから `-CollectStyles` を使う
-- LLM には `workbook.json` 全量ではなく、`llm_package.jsonl` の必要チャンクだけを渡す
+`SHARE_PACKAGE.md` を参照してください。

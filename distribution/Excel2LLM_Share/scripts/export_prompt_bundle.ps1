@@ -7,7 +7,8 @@ param(
     [ValidateSet('general', 'mechanical', 'accounting')]
     [string]$Scenario = 'general',
     [string]$OutputDir,
-    [int]$MaxChunkPrompts = 3
+    [int]$MaxChunkPrompts = 3,
+    [switch]$RedactPaths
 )
 
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -110,92 +111,107 @@ function Convert-ChunkToPromptText {
     ) -join [Environment]::NewLine
 }
 
-if (-not $OutputDir) {
-    $OutputDir = Join-Path (Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output') 'prompt_bundle'
-}
+try {
+    if (-not $OutputDir) {
+        $OutputDir = Join-Path (Join-Path (Split-Path -Path $PSScriptRoot -Parent) 'output') 'prompt_bundle'
+    }
 
-Ensure-Directory -Path $OutputDir
-$resolvedOutputDir = Get-NormalizedFullPath -Path $OutputDir
-$manifestPath = Join-Path $resolvedOutputDir 'prompt_bundle_manifest.json'
-$warnings = [System.Collections.Generic.List[string]]::new()
-if (Test-Path -LiteralPath $manifestPath) {
-    try {
-        $existingManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-        foreach ($existingPrompt in @($existingManifest.prompts)) {
-            $existingPath = [string]$existingPrompt.path
-            if ([string]::IsNullOrWhiteSpace($existingPath)) {
-                continue
-            }
+    Ensure-Directory -Path $OutputDir
+    $resolvedOutputDir = Get-NormalizedFullPath -Path $OutputDir
+    $manifestPath = Join-Path $resolvedOutputDir 'prompt_bundle_manifest.json'
+    $warnings = [System.Collections.Generic.List[string]]::new()
+    if (Test-Path -LiteralPath $manifestPath) {
+        try {
+            $existingManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            foreach ($existingPrompt in @($existingManifest.prompts)) {
+                $existingPath = [string]$existingPrompt.path
+                if ([string]::IsNullOrWhiteSpace($existingPath)) {
+                    continue
+                }
 
-            $resolvedExistingPath = $null
-            try {
-                $resolvedExistingPath = Get-NormalizedFullPath -Path $existingPath
-            }
-            catch {
-                Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup for invalid path: {0}" -f $existingPath)
-                continue
-            }
+                $resolvedExistingPath = $null
+                try {
+                    $pathCandidate = if ([System.IO.Path]::IsPathRooted($existingPath)) {
+                        $existingPath
+                    }
+                    else {
+                        Join-Path $resolvedOutputDir $existingPath
+                    }
+                    $resolvedExistingPath = Get-NormalizedFullPath -Path $pathCandidate
+                }
+                catch {
+                    Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup for invalid path: {0}" -f $existingPath)
+                    continue
+                }
 
-            $fileName = [System.IO.Path]::GetFileName($resolvedExistingPath)
-            if (-not (Test-PathWithinDirectory -Path $resolvedExistingPath -DirectoryPath $resolvedOutputDir)) {
-                Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup outside output directory: {0}" -f $resolvedExistingPath)
-                continue
-            }
+                $fileName = [System.IO.Path]::GetFileName($resolvedExistingPath)
+                if (-not (Test-PathWithinDirectory -Path $resolvedExistingPath -DirectoryPath $resolvedOutputDir)) {
+                    Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup outside output directory: {0}" -f $resolvedExistingPath)
+                    continue
+                }
 
-            if ($fileName -notlike 'prompt_*.txt') {
-                Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup for unmanaged file name: {0}" -f $resolvedExistingPath)
-                continue
-            }
+                if ($fileName -notlike 'prompt_*.txt') {
+                    Add-WarningMessage -Warnings $warnings -Message ("Skipped prompt cleanup for unmanaged file name: {0}" -f $resolvedExistingPath)
+                    continue
+                }
 
-            if (Test-Path -LiteralPath $resolvedExistingPath) {
-                Remove-Item -LiteralPath $resolvedExistingPath -Force
+                if (Test-Path -LiteralPath $resolvedExistingPath) {
+                    Remove-Item -LiteralPath $resolvedExistingPath -Force
+                }
             }
         }
+        catch {
+            Add-WarningMessage -Warnings $warnings -Message ("Prompt bundle cleanup skipped because manifest could not be read: {0}" -f $_.Exception.Message)
+        }
     }
-    catch {
-        Add-WarningMessage -Warnings $warnings -Message ("Prompt bundle cleanup skipped because manifest could not be read: {0}" -f $_.Exception.Message)
+
+    $resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
+    $resolvedJsonlPath = Resolve-AbsolutePath -Path $JsonlPath
+    $workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
+    $chunks = Get-Content -LiteralPath $resolvedJsonlPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_ | ConvertFrom-Json }
+    $scenarioInstructions = Get-ScenarioInstructions -Scenario $Scenario
+
+    $selectedChunks = @(
+        $chunks |
+        Sort-Object @{ Expression = { @($_.formula_cells).Count }; Descending = $true }, @{ Expression = { $_.payload.cell_count }; Descending = $true }, @{ Expression = { [string]$_.sheet_name } } |
+        Select-Object -First $MaxChunkPrompts
+    )
+    $promptFiles = [System.Collections.Generic.List[object]]::new()
+    $index = 1
+
+    foreach ($chunk in $selectedChunks) {
+        $fileName = 'prompt_{0:D2}_{1}_{2}.txt' -f $index, $Scenario, ([string]$chunk.sheet_name).Replace(' ', '_')
+        $promptPath = Join-Path $resolvedOutputDir $fileName
+        $content = Convert-ChunkToPromptText -Chunk $chunk -ScenarioInstructions $scenarioInstructions -WorkbookName ([string]$workbookData.workbook.name)
+        [System.IO.File]::WriteAllText($promptPath, $content, [System.Text.Encoding]::UTF8)
+        [void]$promptFiles.Add([ordered]@{
+            order = $index
+            path = if ($RedactPaths) { $fileName } else { $promptPath }
+            chunk_id = $chunk.chunk_id
+            sheet_name = $chunk.sheet_name
+            range = $chunk.range
+            cell_count = $chunk.payload.cell_count
+        })
+        $index++
     }
+
+    $manifest = [ordered]@{
+        generated_at = Get-TimestampJst
+        scenario = $Scenario
+        workbook_json_path = if ($RedactPaths) { [System.IO.Path]::GetFileName($resolvedWorkbookJsonPath) } else { $resolvedWorkbookJsonPath }
+        jsonl_path = if ($RedactPaths) { [System.IO.Path]::GetFileName($resolvedJsonlPath) } else { $resolvedJsonlPath }
+        prompt_count = $promptFiles.Count
+        warnings = @($warnings)
+        prompts = @($promptFiles)
+    }
+
+    Write-JsonFile -Data $manifest -Path $manifestPath
+    Write-NextStepBlock -Steps @(
+        ('prompt_*.txt を開いて LLM に貼り付ける: {0}' -f $resolvedOutputDir)
+    )
+    Write-Host "Exported prompt bundle -> $resolvedOutputDir"
 }
-
-$resolvedWorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
-$resolvedJsonlPath = Resolve-AbsolutePath -Path $JsonlPath
-$workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
-$chunks = Get-Content -LiteralPath $resolvedJsonlPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_ | ConvertFrom-Json }
-$scenarioInstructions = Get-ScenarioInstructions -Scenario $Scenario
-
-$selectedChunks = @(
-    $chunks |
-    Sort-Object @{ Expression = { @($_.formula_cells).Count }; Descending = $true }, @{ Expression = { $_.payload.cell_count }; Descending = $true }, @{ Expression = { [string]$_.sheet_name } } |
-    Select-Object -First $MaxChunkPrompts
-)
-$promptFiles = [System.Collections.Generic.List[object]]::new()
-$index = 1
-
-foreach ($chunk in $selectedChunks) {
-    $fileName = 'prompt_{0:D2}_{1}_{2}.txt' -f $index, $Scenario, ([string]$chunk.sheet_name).Replace(' ', '_')
-    $promptPath = Join-Path $resolvedOutputDir $fileName
-    $content = Convert-ChunkToPromptText -Chunk $chunk -ScenarioInstructions $scenarioInstructions -WorkbookName ([string]$workbookData.workbook.name)
-    [System.IO.File]::WriteAllText($promptPath, $content, [System.Text.Encoding]::UTF8)
-    [void]$promptFiles.Add([ordered]@{
-        order = $index
-        path = $promptPath
-        chunk_id = $chunk.chunk_id
-        sheet_name = $chunk.sheet_name
-        range = $chunk.range
-        cell_count = $chunk.payload.cell_count
-    })
-    $index++
+catch {
+    Write-ErrorRecoverySteps -CommandName 'prompt bundle'
+    throw "export_prompt_bundle.ps1 line $($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)"
 }
-
-$manifest = [ordered]@{
-    generated_at = Get-TimestampJst
-    scenario = $Scenario
-    workbook_json_path = $resolvedWorkbookJsonPath
-    jsonl_path = $resolvedJsonlPath
-    prompt_count = $promptFiles.Count
-    warnings = @($warnings)
-    prompts = @($promptFiles)
-}
-
-Write-JsonFile -Data $manifest -Path $manifestPath
-Write-Host "Exported prompt bundle -> $resolvedOutputDir"
