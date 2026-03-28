@@ -1,13 +1,26 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('run_all', 'run_extract', 'run_pack', 'run_preflight', 'run_prompt_bundle', 'run_rebuild', 'run_verify')]
+    [ValidateSet('Excel2LLM', 'run_all', 'run_extract', 'run_pack', 'run_preflight', 'run_prompt_bundle', 'run_rebuild', 'run_verify')]
     [string]$CommandName
 )
 
 $usageMap = @{
+    Excel2LLM = @(
+        '使い方: Excel2LLM.bat "C:\path\to\book.xlsx" [run_all のオプション]'
+        '       Excel2LLM.bat -PromptBundle [オプション]'
+        '       Excel2LLM.bat -SelfTest'
+        ''
+        '主な使い方:'
+        '  - Excel ファイルをドラッグアンドドロップすると、そのまま一括実行します'
+        '  - 引数なしで開くと、簡単なメニューを表示します'
+        '  - PromptBundle と SelfTest もここから呼べます'
+        '  - 詳細機能は tools\advanced\ の bat を使います'
+        ''
+        '詳細: GETTING_STARTED.md'
+    )
     run_all = @(
-        '使い方: run_all.bat "C:\path\to\book.xlsx" [-Verify] [extract のオプション]'
+        '使い方: tools\user\run_all.bat "C:\path\to\book.xlsx" [-Verify] [extract のオプション]'
         ''
         '主なオプション:'
         '  -Verify                検証も行います'
@@ -22,7 +35,7 @@ $usageMap = @{
         '詳細: GETTING_STARTED.md'
     )
     run_extract = @(
-        '使い方: run_extract.bat "C:\path\to\book.xlsx" [オプション]'
+        '使い方: tools\advanced\run_extract.bat "C:\path\to\book.xlsx" [オプション]'
         ''
         '主なオプション:'
         '  -CollectStyles         色や罫線などの補助情報も取得します'
@@ -37,7 +50,7 @@ $usageMap = @{
         '詳細: GETTING_STARTED.md'
     )
     run_pack = @(
-        '使い方: run_pack.bat "output\<実行結果フォルダ>\workbook.json" [オプション]'
+        '使い方: tools\advanced\run_pack.bat "output\<実行結果フォルダ>\workbook.json" [オプション]'
         ''
         '主なオプション:'
         '  -ChunkBy sheet         行のまとまりを保ちやすく分割します'
@@ -47,7 +60,7 @@ $usageMap = @{
         '詳細: GETTING_STARTED.md'
     )
     run_preflight = @(
-        '使い方: run_preflight.bat "C:\path\to\book.xlsx" [オプション]'
+        '使い方: tools\advanced\run_preflight.bat "C:\path\to\book.xlsx" [オプション]'
         ''
         '主なオプション:'
         '  -OutputDir "C:\path\to\output"  レポートの出力先を変更します'
@@ -56,7 +69,7 @@ $usageMap = @{
         '詳細: GETTING_STARTED.md'
     )
     run_prompt_bundle = @(
-        '使い方: run_prompt_bundle.bat -Scenario general [オプション]'
+        '使い方: tools\user\run_prompt_bundle.bat -Scenario general [オプション]'
         ''
         '主なオプション:'
         '  -Scenario general|mechanical|accounting  用途別の指示文を選びます'
@@ -67,7 +80,7 @@ $usageMap = @{
         '詳細: GETTING_STARTED.md'
     )
     run_rebuild = @(
-        '使い方: run_rebuild.bat "output\<実行結果フォルダ>\workbook.json" [オプション]'
+        '使い方: tools\advanced\run_rebuild.bat "output\<実行結果フォルダ>\workbook.json" [オプション]'
         ''
         '主なオプション:'
         '  -StylesJsonPath "output\<実行結果フォルダ>\styles.json"  補助情報も反映したいときに指定します'
@@ -77,7 +90,7 @@ $usageMap = @{
         '詳細: GETTING_STARTED.md'
     )
     run_verify = @(
-        '使い方: run_verify.bat "C:\path\to\book.xlsx" [オプション]'
+        '使い方: tools\advanced\run_verify.bat "C:\path\to\book.xlsx" [オプション]'
         ''
         '主なオプション:'
         '  -WorkbookJsonPath "output\<実行結果フォルダ>\workbook.json"  比較対象の workbook.json を指定します'

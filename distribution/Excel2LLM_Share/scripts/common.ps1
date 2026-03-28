@@ -201,12 +201,12 @@ function Set-LatestOutputDirectory {
 function Get-LatestOutputDirectory {
     $pointerPath = Get-LatestOutputDirectoryPointerPath
     if (-not (Test-Path -LiteralPath $pointerPath)) {
-        throw '最新の実行結果が見つかりません。先に run_all.bat または run_extract.bat を実行してください。'
+        throw '最新の実行結果が見つかりません。先に Excel2LLM.bat または tools\advanced\run_extract.bat を実行してください。'
     }
 
     $resolvedOutputDir = [string]([System.IO.File]::ReadAllText($pointerPath, [System.Text.Encoding]::UTF8)).Trim()
     if ([string]::IsNullOrWhiteSpace($resolvedOutputDir)) {
-        throw 'latest_run.txt の内容が空です。先に run_all.bat または run_extract.bat を実行してください。'
+        throw 'latest_run.txt の内容が空です。先に Excel2LLM.bat または tools\advanced\run_extract.bat を実行してください。'
     }
 
     if (-not (Test-Path -LiteralPath $resolvedOutputDir)) {
@@ -243,7 +243,7 @@ function Write-ErrorRecoverySteps {
     Write-Host '対処の目安:'
     Write-Host '  1. Excel を閉じる'
     Write-Host '  2. コマンドをもう一度実行する'
-    Write-Host '  3. まだダメなら run_self_test.bat を実行する'
+    Write-Host '  3. まだダメなら Excel2LLM.bat -SelfTest を実行する'
     Write-Host '  ※ このあとに表示される英語メッセージは、技術調査用の詳細情報です。'
 }
 

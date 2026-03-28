@@ -45,16 +45,9 @@ foreach ($directory in $directories) {
 }
 
 $filesToCopy = @(
+    'Excel2LLM.bat',
     'GETTING_STARTED.md',
     'README.md',
-    'run_all.bat',
-    'run_extract.bat',
-    'run_pack.bat',
-    'run_preflight.bat',
-    'run_prompt_bundle.bat',
-    'run_rebuild.bat',
-    'run_self_test.bat',
-    'run_verify.bat',
     'docs\README.md',
     'docs\guides\USE_CASES.md',
     'docs\reference\FORMAT.md',
@@ -67,6 +60,7 @@ $filesToCopy = @(
     'scripts\excel_verify.ps1',
     'scripts\export_prompt_bundle.ps1',
     'scripts\extract_excel.ps1',
+    'scripts\launch_menu.ps1',
     'scripts\pack_for_llm.ps1',
     'scripts\preflight_excel.ps1',
     'scripts\rebuild_excel.ps1',
@@ -74,6 +68,14 @@ $filesToCopy = @(
     'scripts\run_prompt_bundle.ps1',
     'scripts\run_self_test.ps1',
     'scripts\show_usage.ps1',
+    'tools\user\run_all.bat',
+    'tools\user\run_prompt_bundle.bat',
+    'tools\user\run_self_test.bat',
+    'tools\advanced\run_extract.bat',
+    'tools\advanced\run_pack.bat',
+    'tools\advanced\run_preflight.bat',
+    'tools\advanced\run_rebuild.bat',
+    'tools\advanced\run_verify.bat',
     'templates\Excel2LLM_Helper.bas'
 )
 

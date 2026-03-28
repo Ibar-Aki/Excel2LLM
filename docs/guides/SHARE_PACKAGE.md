@@ -27,7 +27,7 @@
 次のコマンドで生成できます。
 
 ```bat
-run_build_share_package.bat
+tools\developer\run_build_share_package.bat
 ```
 
 既定では、次のフォルダが作られます。
@@ -39,7 +39,7 @@ distribution\Excel2LLM_Share
 `distribution\` 配下以外へ生成したい場合は、明示フラグが必要です。
 
 ```bat
-run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDistribution -ForceCleanOutputDir
+tools\developer\run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDistribution -ForceCleanOutputDir
 ```
 
 ## 配布用フォルダに入るもの
@@ -65,13 +65,15 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 
 配布先では、そのフォルダの中で次を使えば動作します。
 
-- `run_extract.bat`
-- `run_preflight.bat`
-- `run_all.bat`
-- `run_pack.bat`
-- `run_prompt_bundle.bat`
-- `run_verify.bat`
-- `run_rebuild.bat`
+- `Excel2LLM.bat`
+- `tools\user\run_all.bat`
+- `tools\user\run_prompt_bundle.bat`
+- `tools\user\run_self_test.bat`
+- `tools\advanced\run_extract.bat`
+- `tools\advanced\run_preflight.bat`
+- `tools\advanced\run_pack.bat`
+- `tools\advanced\run_verify.bat`
+- `tools\advanced\run_rebuild.bat`
 
 ## 配布先の人に最初に読んでもらうもの
 
@@ -95,4 +97,4 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 - 配布用フォルダ内で個別に編集したファイルは、再生成すると上書きされます
 - 配下外の既存ディレクトリは、明示フラグなしでは削除しません
 - `share_manifest.json` には配布元 PC の絶対パスを残さないようにしています
-- `run_preflight.bat` を使うと、本番抽出の前に危険ファイルを止められます
+- `Excel2LLM.bat -Preflight` を使うと、本番抽出の前に危険ファイルを止められます

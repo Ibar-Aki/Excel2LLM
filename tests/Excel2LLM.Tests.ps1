@@ -11,32 +11,36 @@ $domainSampleScript = Join-Path $projectRoot 'scripts\create_domain_sample_workb
 $promptBundleScript = Join-Path $projectRoot 'scripts\export_prompt_bundle.ps1'
 $acceptanceScript = Join-Path $projectRoot 'scripts\run_domain_acceptance.ps1'
 $sharePackageScript = Join-Path $projectRoot 'scripts\build_share_package.ps1'
-$runExtractBat = Join-Path $projectRoot 'run_extract.bat'
-$runPackBat = Join-Path $projectRoot 'run_pack.bat'
-$runPreflightBat = Join-Path $projectRoot 'run_preflight.bat'
-$runVerifyBat = Join-Path $projectRoot 'run_verify.bat'
-$runRebuildBat = Join-Path $projectRoot 'run_rebuild.bat'
-$runAllBat = Join-Path $projectRoot 'run_all.bat'
-$runPromptBundleBat = Join-Path $projectRoot 'run_prompt_bundle.bat'
+$excel2llmBat = Join-Path $projectRoot 'Excel2LLM.bat'
+$runExtractBat = Join-Path $projectRoot 'tools\advanced\run_extract.bat'
+$runPackBat = Join-Path $projectRoot 'tools\advanced\run_pack.bat'
+$runPreflightBat = Join-Path $projectRoot 'tools\advanced\run_preflight.bat'
+$runVerifyBat = Join-Path $projectRoot 'tools\advanced\run_verify.bat'
+$runRebuildBat = Join-Path $projectRoot 'tools\advanced\run_rebuild.bat'
+$runAllBat = Join-Path $projectRoot 'tools\user\run_all.bat'
+$runPromptBundleBat = Join-Path $projectRoot 'tools\user\run_prompt_bundle.bat'
 
 Describe 'Excel2LLM integration tests' {
     It 'shows usage help from bat entrypoints instead of falling into PowerShell mandatory prompts' {
         $batCases = @(
-            @{ Path = $runExtractBat; Usage = '使い方: run_extract.bat' }
-            @{ Path = $runPackBat; Usage = '使い方: run_pack.bat' }
-            @{ Path = $runPreflightBat; Usage = '使い方: run_preflight.bat' }
-            @{ Path = $runVerifyBat; Usage = '使い方: run_verify.bat' }
-            @{ Path = $runRebuildBat; Usage = '使い方: run_rebuild.bat' }
-            @{ Path = $runAllBat; Usage = '使い方: run_all.bat' }
-            @{ Path = $runPromptBundleBat; Usage = '使い方: run_prompt_bundle.bat' }
+            @{ Path = $excel2llmBat; Usage = '使い方: Excel2LLM.bat'; SkipNoArg = $true }
+            @{ Path = $runExtractBat; Usage = '使い方: tools\advanced\run_extract.bat' }
+            @{ Path = $runPackBat; Usage = '使い方: tools\advanced\run_pack.bat' }
+            @{ Path = $runPreflightBat; Usage = '使い方: tools\advanced\run_preflight.bat' }
+            @{ Path = $runVerifyBat; Usage = '使い方: tools\advanced\run_verify.bat' }
+            @{ Path = $runRebuildBat; Usage = '使い方: tools\advanced\run_rebuild.bat' }
+            @{ Path = $runAllBat; Usage = '使い方: tools\user\run_all.bat' }
+            @{ Path = $runPromptBundleBat; Usage = '使い方: tools\user\run_prompt_bundle.bat' }
         )
 
         foreach ($batCase in $batCases) {
             $usagePattern = [regex]::Escape([string]$batCase.Usage)
-            $noArgOutput = & cmd.exe /d /c """$($batCase.Path)""" 2>&1 | Out-String
-            $LASTEXITCODE | Should Be 1
-            $noArgOutput | Should Match $usagePattern
-            $noArgOutput | Should Match 'GETTING_STARTED\.md'
+            if (-not [bool]$batCase['SkipNoArg']) {
+                $noArgOutput = & cmd.exe /d /c """$($batCase.Path)""" 2>&1 | Out-String
+                $LASTEXITCODE | Should Be 1
+                $noArgOutput | Should Match $usagePattern
+                $noArgOutput | Should Match 'GETTING_STARTED\.md'
+            }
 
             foreach ($helpSwitch in @('-h', '--help', '/?')) {
                 $helpOutput = & cmd.exe /d /c """$($batCase.Path)"" $helpSwitch" 2>&1 | Out-String
@@ -209,7 +213,7 @@ Describe 'Excel2LLM integration tests' {
         $verifyOutput | Should Match '=== 次のおすすめ ==='
     }
 
-    It 'runs run_all.bat end-to-end and supports optional verify mode' {
+    It 'runs Excel2LLM.bat end-to-end and supports optional verify mode' {
         $workspace = New-TestWorkspace -Name 'run-all'
         $samplesDir = Join-Path $workspace 'samples'
         $outputDir = Join-Path $workspace 'output'
@@ -217,8 +221,8 @@ Describe 'Excel2LLM integration tests' {
 
         & $sampleScript -OutputDir $samplesDir
 
-        $runAllOutput = & cmd.exe /d /c """$runAllBat"" ""$bookPath"" -OutputDir ""$outputDir""" 2>&1 | Out-String
-        $runAllVerifyOutput = & cmd.exe /d /c """$runAllBat"" ""$bookPath"" -Verify -OutputDir ""$outputDir""" 2>&1 | Out-String
+        $runAllOutput = & cmd.exe /d /c """$excel2llmBat"" ""$bookPath"" -OutputDir ""$outputDir""" 2>&1 | Out-String
+        $runAllVerifyOutput = & cmd.exe /d /c """$excel2llmBat"" ""$bookPath"" -Verify -OutputDir ""$outputDir""" 2>&1 | Out-String
 
         (Test-Path -LiteralPath (Join-Path $outputDir 'workbook.json')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outputDir 'llm_package.jsonl')) | Should Be $true
@@ -228,14 +232,14 @@ Describe 'Excel2LLM integration tests' {
         $runAllVerifyOutput | Should Match 'verify 実行: あり'
     }
 
-    It 'propagates verify security flags through run_all.bat' {
+    It 'propagates verify security flags through Excel2LLM.bat' {
         $workspace = New-TestWorkspace -Name 'run-all-security'
         $bookPath = Join-Path $workspace 'security.xlsx'
         $outputDir = Join-Path $workspace 'output'
 
         New-MiniWorkbook -Path $bookPath
 
-        & cmd.exe /d /c """$runAllBat"" ""$bookPath"" -Verify -RedactPaths -AllowWorkbookMacros -OutputDir ""$outputDir""" | Out-Null
+        & cmd.exe /d /c """$excel2llmBat"" ""$bookPath"" -Verify -RedactPaths -AllowWorkbookMacros -OutputDir ""$outputDir""" | Out-Null
 
         $LASTEXITCODE | Should Be 0
 
@@ -258,7 +262,7 @@ Describe 'Excel2LLM integration tests' {
 
         Push-Location $workspace
         try {
-            $promptOutput = & cmd.exe /d /c """$runPromptBundleBat"" -Scenario general -WorkbookJsonPath ""$outputDir\workbook.json"" -JsonlPath ""$outputDir\llm_package.jsonl"" -OutputDir ""$outputDir\prompt_bundle""" 2>&1 | Out-String
+            $promptOutput = & cmd.exe /d /c """$excel2llmBat"" -PromptBundle -Scenario general -WorkbookJsonPath ""$outputDir\workbook.json"" -JsonlPath ""$outputDir\llm_package.jsonl"" -OutputDir ""$outputDir\prompt_bundle""" 2>&1 | Out-String
         }
         finally {
             Pop-Location
@@ -317,7 +321,7 @@ Describe 'Excel2LLM integration tests' {
 
             Push-Location $workspace
             try {
-                & cmd.exe /d /c """$runPromptBundleBat"" -Scenario general" | Out-Null
+                & cmd.exe /d /c """$excel2llmBat"" -PromptBundle -Scenario general" | Out-Null
             }
             finally {
                 Pop-Location
@@ -341,12 +345,12 @@ Describe 'Excel2LLM integration tests' {
         $workspace = New-TestWorkspace -Name 'error-guidance'
         $missingPath = Join-Path $workspace 'missing.xlsx'
 
-        $output = & cmd.exe /d /c """$runAllBat"" ""$missingPath""" 2>&1 | Out-String
+        $output = & cmd.exe /d /c """$excel2llmBat"" ""$missingPath""" 2>&1 | Out-String
 
         $LASTEXITCODE | Should Not Be 0
         $output | Should Match '1\. Excel を閉じる'
         $output | Should Match '2\. コマンドをもう一度実行する'
-        $output | Should Match '3\. まだダメなら run_self_test\.bat'
+        $output | Should Match '3\. まだダメなら Excel2LLM\.bat -SelfTest'
     }
 
     It 'supports path redaction and explicit macro opt-in for extract and verify flows' {
@@ -698,9 +702,10 @@ Describe 'Excel2LLM integration tests' {
         $shareManifest.package_name | Should Be 'share-package'
         (Test-Path -LiteralPath (Join-Path $outsideDir 'README.md')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'GETTING_STARTED.md')) | Should Be $true
-        (Test-Path -LiteralPath (Join-Path $outsideDir 'run_all.bat')) | Should Be $true
-        (Test-Path -LiteralPath (Join-Path $outsideDir 'run_preflight.bat')) | Should Be $true
-        (Test-Path -LiteralPath (Join-Path $outsideDir 'run_prompt_bundle.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'Excel2LLM.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'tools\user\run_all.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'tools\advanced\run_preflight.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'tools\user\run_prompt_bundle.bat')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'docs\guides\SHARE_PACKAGE.md')) | Should Be $false
         (Test-Path -LiteralPath (Join-Path $outsideDir 'docs\guides\MANUAL.md')) | Should Be $false
         (Test-Path -LiteralPath (Join-Path $outsideDir 'docs\guides\USER_GUIDE.md')) | Should Be $false

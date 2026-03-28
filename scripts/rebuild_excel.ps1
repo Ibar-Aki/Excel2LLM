@@ -459,10 +459,10 @@ try {
         $sheet = $null
         try {
             $sheetName = [string]$sheetRecord.sheet_name
-            Write-Host "Rebuilding sheet -> $sheetName"
+            Write-Host ('シートを復元中 -> {0}' -f $sheetName)
             $sheet = $workbook.Worksheets.Item([int]$sheetRecord.sheet_index)
             $sheetCells = @($cellsBySheet[$sheetName] | Sort-Object row, column)
-            Write-Host "  Writing base values -> $sheetName"
+            Write-Host ('  基本値を書き込み中 -> {0}' -f $sheetName)
             Set-WorksheetBaseValues -Worksheet $sheet -SheetRecord $sheetRecord -SheetCells $sheetCells
             $reportCounters.restored_cells += $sheetCells.Count
 
@@ -475,14 +475,14 @@ try {
                     $null -ne $_.comment_threaded
                 }
             )
-            Write-Host "  Restoring formulas/comments/links -> $sheetName"
+            Write-Host ('  数式・コメント・リンクを復元中 -> {0}' -f $sheetName)
 
             foreach ($cellRecord in $specialCells) {
                 $cell = $null
                 $cellLabel = '{0}!{1}' -f $sheetName, [string]$cellRecord.address
                 try {
                     if ($sheetCells.Count -le 100) {
-                        Write-Host "    Special cell -> $cellLabel"
+                        Write-Host ('    特別処理セル -> {0}' -f $cellLabel)
                     }
                     $cell = $sheet.Cells.Item([int]$cellRecord.row, [int]$cellRecord.column)
 
@@ -545,7 +545,7 @@ try {
                 }
             }
 
-            Write-Host "  Restoring dimensions -> $sheetName"
+            Write-Host ('  行高・列幅・非表示を復元中 -> {0}' -f $sheetName)
             foreach ($rowInfo in @($sheetRecord.row_heights)) {
                 $rowRange = $null
                 try {
@@ -600,7 +600,7 @@ try {
                 }
             }
 
-            Write-Host "  Restoring merges -> $sheetName"
+            Write-Host ('  結合セルを復元中 -> {0}' -f $sheetName)
             foreach ($mergeRecord in @($sheetRecord.merged_ranges)) {
                 if (-not (Test-ValidMergeAddress -Address ([string]$mergeRecord.range))) {
                     Add-WarningMessage -Warnings $warnings -Message ("Invalid merge range skipped for {0}: {1}" -f $sheetName, [string]$mergeRecord.range)
@@ -623,7 +623,7 @@ try {
                 }
             }
 
-            Write-Host "  Restoring styles -> $sheetName"
+            Write-Host ('  書式を復元中 -> {0}' -f $sheetName)
             if ($styleLookup.ContainsKey($sheetName)) {
                 foreach ($styleRecord in $styleLookup[$sheetName].Values) {
                     $cellRecord = $cellLookup[$sheetName][[string]$styleRecord.address]
@@ -648,7 +648,7 @@ try {
                 }
             }
 
-            Write-Host "  Restoring freeze panes -> $sheetName"
+            Write-Host ('  ウィンドウ枠固定を復元中 -> {0}' -f $sheetName)
             if ($null -ne $sheetRecord.freeze_panes) {
                 try {
                     Set-WorksheetFreezeState -Excel $excel -Worksheet $sheet -FreezeState $sheetRecord.freeze_panes
@@ -657,7 +657,7 @@ try {
                     Add-WarningMessage -Warnings $warnings -Message ("Freeze panes restore failed for {0}: {1}" -f $sheetName, $_.Exception.Message)
                 }
             }
-            Write-Host "Completed sheet -> $sheetName"
+            Write-Host ('シート復元完了 -> {0}' -f $sheetName)
         }
         finally {
             if ($null -ne $sheet) {
@@ -689,7 +689,7 @@ try {
         Remove-Item -LiteralPath $resolvedOutputPath -Force
     }
 
-    Write-Host "Saving rebuilt workbook -> $resolvedOutputPath"
+    Write-Host ('復元した Excel を保存中 -> {0}' -f $resolvedOutputPath)
     $workbook.SaveAs($resolvedOutputPath, 51)
     $excel.CalculateFullRebuild()
 
@@ -717,10 +717,10 @@ try {
 
     Write-NextStepBlock -Steps @(
         ('復元した Excel を開いて確認する: {0}' -f $resolvedOutputPath),
-        ('必要なら run_extract.bat "{0}"' -f $resolvedOutputPath)
+        ('必要なら tools\advanced\run_extract.bat "{0}"' -f $resolvedOutputPath)
     )
-    Write-Host "Rebuilt workbook     -> $resolvedOutputPath"
-    Write-Host "Rebuild report.json -> $rebuildReportPath"
+    Write-Host ('復元した Excel     -> {0}' -f $resolvedOutputPath)
+    Write-Host ('rebuild_report.json -> {0}' -f $rebuildReportPath)
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'rebuild'

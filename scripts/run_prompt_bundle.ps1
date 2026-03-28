@@ -17,6 +17,10 @@ try {
         $latestOutputDir = Get-LatestOutputDirectory
         $WorkbookJsonPath = Join-Path $latestOutputDir 'workbook.json'
     }
+    elseif (Test-Path -LiteralPath $WorkbookJsonPath) {
+        $WorkbookJsonPath = Resolve-AbsolutePath -Path $WorkbookJsonPath
+    }
+
     if (-not $JsonlPath) {
         if (-not [string]::IsNullOrWhiteSpace($WorkbookJsonPath)) {
             $JsonlPath = Join-Path (Split-Path -Path $WorkbookJsonPath -Parent) 'llm_package.jsonl'
@@ -28,6 +32,10 @@ try {
             $JsonlPath = Join-Path $latestOutputDir 'llm_package.jsonl'
         }
     }
+    elseif (Test-Path -LiteralPath $JsonlPath) {
+        $JsonlPath = Resolve-AbsolutePath -Path $JsonlPath
+    }
+
     if (-not $OutputDir) {
         $promptSourceDir = if (-not [string]::IsNullOrWhiteSpace($WorkbookJsonPath)) {
             Split-Path -Path $WorkbookJsonPath -Parent

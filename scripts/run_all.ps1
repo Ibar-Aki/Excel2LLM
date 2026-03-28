@@ -65,7 +65,7 @@ try {
     Write-Host ('  処理時間: {0:hh\:mm\:ss}' -f $sw.Elapsed)
     Write-NextStepBlock -Steps @(
         ('LLM に渡す対象: {0}' -f $jsonlPath),
-        ('必要なら run_prompt_bundle.bat -Scenario general を実行する')
+        ('必要なら Excel2LLM.bat -PromptBundle -Scenario general を実行する')
     )
 }
 catch {

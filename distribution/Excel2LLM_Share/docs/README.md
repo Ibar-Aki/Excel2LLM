@@ -22,7 +22,7 @@
 ## 文書の役割
 
 - `..\GETTING_STARTED.md`
-  - 利用者向けの手順をまとめた文書
+  - `Excel2LLM.bat` を入口にした利用者向け手順
 - `guides/USE_CASES.md`
   - 実務での使い方と活用例
 - `reference/FORMAT.md`

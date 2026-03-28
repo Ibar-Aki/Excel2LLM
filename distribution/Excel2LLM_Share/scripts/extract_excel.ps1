@@ -433,8 +433,8 @@ try {
     Write-Host ('  警告:        {0}' -f $warningSummary)
     Write-Host ('  出力先:      {0}' -f $workbookJsonPath)
     Write-NextStepBlock -Steps @(
-        ('run_pack.bat "{0}"' -f $workbookJsonPath),
-        ('重要な資料なら run_verify.bat "{0}" -WorkbookJsonPath "{1}"' -f $resolvedExcelPath, $workbookJsonPath)
+        ('tools\advanced\run_pack.bat "{0}"' -f $workbookJsonPath),
+        ('重要な資料なら tools\advanced\run_verify.bat "{0}" -WorkbookJsonPath "{1}"' -f $resolvedExcelPath, $workbookJsonPath)
     )
 }
 catch {

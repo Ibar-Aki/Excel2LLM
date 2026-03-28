@@ -2,6 +2,7 @@
 
 - 作成日: 2026-03-10 01:36 JST
 - 作成者: Codex (GPT-5)
+- 更新日: 2026-03-28
 
 ## 目的
 
@@ -12,22 +13,22 @@
 ### 1. 変更後にテストを実行する
 
 ```bat
-run_tests.bat
-run_self_test.bat
+tools\developer\run_tests.bat
+tools\user\run_self_test.bat
 ```
 
 確認ポイント:
 
-- `run_tests.bat` が全件成功する
-- `run_self_test.bat` が成功する
-- `output\manifest.json` の `status` が `success` または意図した `warning` である
+- `tools\developer\run_tests.bat` が全件成功する
+- `tools\user\run_self_test.bat` が成功する
+- 最新の実行結果フォルダにある `manifest.json` の `status` が `success` または意図した `warning` である
 
 ### 2. 実ファイルで動作確認する
 
 ```bat
-run_extract.bat "C:\Data\book.xlsx"
-run_pack.bat "C:\Work_Codex\Excel2LLM\output\workbook.json"
-run_verify.bat "C:\Data\book.xlsx"
+tools\advanced\run_extract.bat "C:\Data\book.xlsx"
+tools\advanced\run_pack.bat "C:\Work_Codex\Excel2LLM\output\<実行結果フォルダ>\workbook.json"
+tools\advanced\run_verify.bat "C:\Data\book.xlsx" -WorkbookJsonPath "C:\Work_Codex\Excel2LLM\output\<実行結果フォルダ>\workbook.json"
 ```
 
 確認ポイント:
@@ -52,8 +53,8 @@ git diff
 
 ### 必須
 
-- `run_tests.bat` が成功
-- `run_self_test.bat` が成功
+- `tools\developer\run_tests.bat` が成功
+- `tools\user\run_self_test.bat` が成功
 - README と関連ドキュメントが最新
 - 新規 `.md` に作成日と作成者が入っている
 - 既存 `.md` の更新日が反映されている
@@ -113,7 +114,7 @@ git push -u origin codex/<topic>
 
 優先確認:
 
-- 失敗したのが `run_tests.bat` か `run_self_test.bat` か
+- 失敗したのが `tools\developer\run_tests.bat` か `tools\user\run_self_test.bat` か
 - 実装変更による仕様差か
 - テストフィクスチャの前提が崩れていないか
 
@@ -134,8 +135,8 @@ git push -u origin codex/<topic>
 
 ## おすすめの運用ルール
 
-- 実装変更後はまず `run_tests.bat`
-- Excel COM に触る変更後は `run_self_test.bat`
-- 重要変更は実ファイルでも `run_verify.bat`
+- 実装変更後はまず `tools\developer\run_tests.bat`
+- Excel COM に触る変更後は `tools\user\run_self_test.bat`
+- 重要変更は実ファイルでも `tools\advanced\run_verify.bat`
 - コミット前に README と `docs/` の更新漏れを確認
 - リモートが必要になるまでは無理に push しない
