@@ -80,6 +80,19 @@ try {
     $workbookJsonPath = Join-Path $OutputDir 'workbook.json'
     $stylesJsonPath = Join-Path $OutputDir 'styles.json'
     $manifestJsonPath = Join-Path $OutputDir 'manifest.json'
+    $preflightScriptPath = Join-Path $PSScriptRoot 'preflight_excel.ps1'
+
+    try {
+        & $preflightScriptPath -ExcelPath $resolvedExcelPath -OutputDir $resolvedOutputDir -RedactPaths:$RedactPaths
+    }
+    catch {
+        foreach ($stalePath in @($workbookJsonPath, $stylesJsonPath, $manifestJsonPath)) {
+            if (Test-Path -LiteralPath $stalePath) {
+                Remove-Item -LiteralPath $stalePath -Force
+            }
+        }
+        throw
+    }
 
     $excel = New-ExcelApplication -AllowWorkbookMacros:$AllowWorkbookMacros
     $workbook = $excel.Workbooks.Open($resolvedExcelPath, 0, $true)
@@ -394,9 +407,6 @@ try {
         ('run_pack.bat "{0}"' -f $workbookJsonPath),
         ('重要な資料なら run_verify.bat "{0}" -WorkbookJsonPath "{1}"' -f $resolvedExcelPath, $workbookJsonPath)
     )
-    Write-Host "Extracted workbook.json -> $workbookJsonPath"
-    Write-Host "Extracted styles.json   -> $stylesJsonPath"
-    Write-Host "Extracted manifest.json -> $manifestJsonPath"
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'extract'

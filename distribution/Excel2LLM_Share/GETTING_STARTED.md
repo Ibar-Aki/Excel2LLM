@@ -2,6 +2,7 @@
 
 - 作成日: 2026-03-28 00:20 JST
 - 作成者: Codex (GPT-5)
+- 更新日: 2026-03-28
 
 ## 最初にやること
 
@@ -18,6 +19,8 @@ run_self_test.bat
 run_all.bat "C:\Data\book.xlsx"
 ```
 
+`run_all` は抽出前に自動で `preflight` を行います。重すぎる Excel や破損疑いのある Excel はここで止まります。
+
 ## 何ができるか
 
 - Excel を `workbook.json` に変換する
@@ -27,6 +30,7 @@ run_all.bat "C:\Data\book.xlsx"
 ## まず見るファイル
 
 - `output\workbook.json`
+- `output\preflight_report.json`
 - `output\llm_package.jsonl`
 - `output\verify_report.json`
 
@@ -35,6 +39,7 @@ run_all.bat "C:\Data\book.xlsx"
 ```bat
 run_all.bat "C:\Data\book.xlsx"
 run_all.bat "C:\Data\book.xlsx" -Verify
+run_preflight.bat "C:\Data\book.xlsx"
 run_prompt_bundle.bat -Scenario general
 ```
 

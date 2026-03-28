@@ -40,6 +40,7 @@ try {
         $extractParameters['ExcludeSheets'] = $ExcludeSheets
     }
 
+    # extract_excel.ps1 が mandatory preflight を先に実行し、危険なブックでは COM を起動しない。
     & (Join-Path $PSScriptRoot 'extract_excel.ps1') @extractParameters
 
     if ($Verify) {

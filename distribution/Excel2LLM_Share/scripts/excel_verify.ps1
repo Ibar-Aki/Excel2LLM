@@ -158,7 +158,6 @@ try {
             ('差分解消後に run_pack.bat "{0}"' -f $resolvedWorkbookJsonPath)
         )
     }
-    Write-Host "Verified workbook -> $verifyReportPath"
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'verify'

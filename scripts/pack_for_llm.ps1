@@ -227,7 +227,6 @@ try {
     Write-NextStepBlock -Steps @(
         ('llm_package.jsonl から必要チャンクを LLM に渡す: {0}' -f $OutputPath)
     )
-    Write-Host "Packed llm_package.jsonl -> $OutputPath"
 }
 catch {
     Write-ErrorRecoverySteps -CommandName 'pack'

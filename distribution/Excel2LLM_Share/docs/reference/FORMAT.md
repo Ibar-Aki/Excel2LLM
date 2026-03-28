@@ -2,7 +2,23 @@
 
 - 作成日: 2026-03-10 00:55 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-27
+- 更新日: 2026-03-28
+
+## preflight_report.json
+
+`preflight_report.json` は抽出前の事前チェック結果です。
+
+- `status`: `success | warning | blocked`
+- `blocked`: 停止したかどうか
+- `workbook_path`: 元 Excel のパス。`-RedactPaths` 指定時はファイル名
+- `output_directory`: 出力先。`-RedactPaths` 指定時は末尾ディレクトリ名
+- `file_size_bytes`
+- `sheet_count`
+- `estimated_total_cells`
+- `largest_sheet`
+- `reasons`: 停止理由
+- `warnings`: 警告一覧
+- `sheets[]`: シートごとの推定 dimension と推定セル数
 
 ## workbook.json
 

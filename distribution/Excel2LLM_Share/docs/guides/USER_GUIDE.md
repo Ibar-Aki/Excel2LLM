@@ -13,6 +13,8 @@
 
 - `workbook.json`
   - Excel の内容を保存した正本
+- `preflight_report.json`
+  - 抽出前の事前チェック結果
 - `llm_package.jsonl`
   - LLM に渡す実用ファイル
 - `verify_report.json`
@@ -34,6 +36,21 @@ run_all.bat "C:\Data\report.xlsx" -Verify
 
 ## 基本の流れ
 
+### 0. 事前チェックで危険ファイルを止める
+
+`extract` と `run_all` は、抽出前に必ず `preflight` を実行します。
+
+```bat
+run_preflight.bat "C:\Data\report.xlsx"
+```
+
+停止条件の例:
+
+- ファイルサイズが 200MB を超える
+- 推定総セル数が 500 万を超える
+- 単一シートの推定セル数が 200 万を超える
+- `xlsx/xlsm` の ZIP 構造や必須 XML が壊れている
+
 ### 1. Excel を JSON に変換する
 
 ```bat
@@ -42,6 +59,7 @@ run_extract.bat "C:\Data\report.xlsx"
 
 主な出力:
 
+- `output\preflight_report.json`
 - `output\workbook.json`
 - `output\styles.json`
 - `output\manifest.json`
@@ -94,6 +112,8 @@ run_all.bat "C:\Data\sample.xlsx"
 run_all.bat "C:\Data\sample.xlsx" -Verify
 ```
 
+`run_all` も `extract` と同じ preflight を通過した場合だけ先へ進みます。
+
 ## 各コマンドの使い分け
 
 ### extract
@@ -115,6 +135,8 @@ run_extract.bat "C:\Data\sample.xlsx" -Sheets Summary,Calc -ExcludeSheets Calc
 
 補足:
 
+- `run_preflight.bat`
+  - Excel を開かずに危険ファイルを止めたいときに使う
 - `-Sheets`
   - 指定したシートだけ抽出
 - `-ExcludeSheets`
@@ -192,6 +214,7 @@ run_prompt_bundle.bat -Scenario accounting
 ```bat
 run_all.bat -h
 run_extract.bat -h
+run_preflight.bat -h
 run_pack.bat --help
 run_prompt_bundle.bat -h
 run_verify.bat /?
@@ -218,6 +241,16 @@ run_rebuild.bat -h
 - コンソールの `検証結果`
 - `verify_report.json` の `mismatch_count`
 - 差分がある場合は `verify_report.json` を開く
+
+## preflight で止まったとき
+
+画面に停止理由が出たら、まず次を確認します。
+
+1. 対象シートを絞る
+2. 不要列を削る
+3. 集計用シートだけを別ブック化する
+
+`preflight_report.json` を見ると、停止理由、警告、推定セル数、最大シートが分かります。
 
 ## エラー時の見方
 

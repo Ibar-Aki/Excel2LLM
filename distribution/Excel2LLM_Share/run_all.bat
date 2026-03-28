@@ -21,5 +21,9 @@ echo   -OutputDir "C:\path\to\output"
 echo   -RedactPaths
 echo   -Sheets Summary,Calc
 echo.
+echo Notes:
+echo   - run_all uses the same mandatory preflight as run_extract.
+echo   - Oversized or corrupted workbooks are blocked before Excel starts.
+echo.
 echo See: docs\guides\MANUAL.md or docs\guides\USER_GUIDE.md
 exit /b 1

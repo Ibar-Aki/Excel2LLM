@@ -65,6 +65,7 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 配布先では、そのフォルダの中で次を使えば動作します。
 
 - `run_extract.bat`
+- `run_preflight.bat`
 - `run_all.bat`
 - `run_pack.bat`
 - `run_prompt_bundle.bat`
@@ -88,3 +89,4 @@ run_build_share_package.bat -OutputDir "C:\Temp\Excel2LLM_Share" -AllowOutsideDi
 - 配布用フォルダ内で個別に編集したファイルは、再生成すると上書きされます
 - 配下外の既存ディレクトリは、明示フラグなしでは削除しません
 - `share_manifest.json` には配布元 PC の絶対パスを残さないようにしています
+- `run_preflight.bat` を使うと、本番抽出の前に危険ファイルを止められます

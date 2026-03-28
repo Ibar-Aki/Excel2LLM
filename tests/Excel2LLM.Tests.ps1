@@ -2,6 +2,7 @@ $projectRoot = Split-Path -Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 
 $extractScript = Join-Path $projectRoot 'scripts\extract_excel.ps1'
+$preflightScript = Join-Path $projectRoot 'scripts\preflight_excel.ps1'
 $packScript = Join-Path $projectRoot 'scripts\pack_for_llm.ps1'
 $verifyScript = Join-Path $projectRoot 'scripts\excel_verify.ps1'
 $rebuildScript = Join-Path $projectRoot 'scripts\rebuild_excel.ps1'
@@ -12,6 +13,7 @@ $acceptanceScript = Join-Path $projectRoot 'scripts\run_domain_acceptance.ps1'
 $sharePackageScript = Join-Path $projectRoot 'scripts\build_share_package.ps1'
 $runExtractBat = Join-Path $projectRoot 'run_extract.bat'
 $runPackBat = Join-Path $projectRoot 'run_pack.bat'
+$runPreflightBat = Join-Path $projectRoot 'run_preflight.bat'
 $runVerifyBat = Join-Path $projectRoot 'run_verify.bat'
 $runRebuildBat = Join-Path $projectRoot 'run_rebuild.bat'
 $runAllBat = Join-Path $projectRoot 'run_all.bat'
@@ -22,6 +24,7 @@ Describe 'Excel2LLM integration tests' {
         $batCases = @(
             @{ Path = $runExtractBat; Usage = 'Usage: run_extract.bat' }
             @{ Path = $runPackBat; Usage = 'Usage: run_pack.bat' }
+            @{ Path = $runPreflightBat; Usage = 'Usage: run_preflight.bat' }
             @{ Path = $runVerifyBat; Usage = 'Usage: run_verify.bat' }
             @{ Path = $runRebuildBat; Usage = 'Usage: run_rebuild.bat' }
             @{ Path = $runAllBat; Usage = 'Usage: run_all.bat' }
@@ -41,6 +44,116 @@ Describe 'Excel2LLM integration tests' {
                 $helpOutput | Should Match $usagePattern
             }
         }
+    }
+
+    It 'writes successful preflight reports for supported workbook types' {
+        $workspace = New-TestWorkspace -Name 'preflight-success'
+        $samplesDir = Join-Path $workspace 'samples'
+        $xlsxOutputDir = Join-Path $workspace 'xlsx-output'
+        $xlsmOutputDir = Join-Path $workspace 'xlsm-output'
+
+        & $sampleScript -OutputDir $samplesDir
+        & $preflightScript -ExcelPath (Join-Path $samplesDir 'sample.xlsx') -OutputDir $xlsxOutputDir
+        & $preflightScript -ExcelPath (Join-Path $samplesDir 'sample.xlsm') -OutputDir $xlsmOutputDir -RedactPaths
+
+        $xlsxReport = Get-Content -LiteralPath (Join-Path $xlsxOutputDir 'preflight_report.json') -Raw | ConvertFrom-Json
+        $xlsmReport = Get-Content -LiteralPath (Join-Path $xlsmOutputDir 'preflight_report.json') -Raw | ConvertFrom-Json
+
+        $xlsxReport.status | Should Be 'success'
+        $xlsxReport.blocked | Should Be $false
+        $xlsxReport.sheet_count | Should Be 3
+        $xlsxReport.estimated_total_cells | Should BeGreaterThan 0
+        $xlsmReport.status | Should Be 'success'
+        $xlsmReport.blocked | Should Be $false
+        $xlsmReport.workbook_path | Should Be 'sample.xlsm'
+    }
+
+    It 'blocks corrupt and structurally invalid OpenXML workbooks during preflight' {
+        $workspace = New-TestWorkspace -Name 'preflight-invalid'
+        $corruptPath = Join-Path $workspace 'corrupt.xlsx'
+        $missingRelsPath = Join-Path $workspace 'missing-rels.xlsx'
+        $corruptOutputDir = Join-Path $workspace 'corrupt-output'
+        $missingRelsOutputDir = Join-Path $workspace 'missing-rels-output'
+
+        New-CorruptWorkbookFile -Path $corruptPath
+        New-PreflightWorkbookFixture -Path $missingRelsPath -RemoveWorkbookRelationships
+
+        $corruptDidThrow = $false
+        try {
+            & $preflightScript -ExcelPath $corruptPath -OutputDir $corruptOutputDir
+        }
+        catch {
+            $corruptDidThrow = $true
+        }
+
+        $missingRelsDidThrow = $false
+        try {
+            & $preflightScript -ExcelPath $missingRelsPath -OutputDir $missingRelsOutputDir
+        }
+        catch {
+            $missingRelsDidThrow = $true
+        }
+
+        $corruptReport = Get-Content -LiteralPath (Join-Path $corruptOutputDir 'preflight_report.json') -Raw | ConvertFrom-Json
+        $missingRelsReport = Get-Content -LiteralPath (Join-Path $missingRelsOutputDir 'preflight_report.json') -Raw | ConvertFrom-Json
+
+        $corruptDidThrow | Should Be $true
+        $corruptReport.status | Should Be 'blocked'
+        ($corruptReport.reasons -join ' ') | Should Match 'OpenXML ZIP archive'
+        $missingRelsDidThrow | Should Be $true
+        $missingRelsReport.status | Should Be 'blocked'
+        ($missingRelsReport.reasons -join ' ') | Should Match 'xl/_rels/workbook\.xml\.rels'
+    }
+
+    It 'warns on medium-sized workbooks without blocking preflight' {
+        $workspace = New-TestWorkspace -Name 'preflight-warning'
+        $bookPath = Join-Path $workspace 'warning.xlsx'
+        $outputDir = Join-Path $workspace 'output'
+
+        New-PreflightWorkbookFixture -Path $bookPath -PadToBytes 60MB
+        & $preflightScript -ExcelPath $bookPath -OutputDir $outputDir
+
+        $preflightReport = Get-Content -LiteralPath (Join-Path $outputDir 'preflight_report.json') -Raw | ConvertFrom-Json
+
+        $preflightReport.status | Should Be 'warning'
+        $preflightReport.blocked | Should Be $false
+        $preflightReport.file_size_bytes | Should BeGreaterThan 50MB
+        ($preflightReport.warnings -join ' ') | Should Match 'File size is large'
+    }
+
+    It 'blocks oversized or malformed-dimension workbooks before extraction starts' {
+        $workspace = New-TestWorkspace -Name 'preflight-blocked-extract'
+        $oversizedPath = Join-Path $workspace 'oversized.xlsx'
+        $missingDimensionPath = Join-Path $workspace 'missing-dimension.xlsx'
+        $oversizedOutputDir = Join-Path $workspace 'oversized-output'
+        $missingDimensionOutputDir = Join-Path $workspace 'missing-dimension-output'
+
+        New-PreflightWorkbookFixture -Path $oversizedPath -PadToBytes 205MB
+        New-PreflightWorkbookFixture -Path $missingDimensionPath -RemoveWorksheetDimension -PadToBytes 60MB
+
+        $extractOutput = & cmd.exe /d /c """$runExtractBat"" ""$oversizedPath"" -OutputDir ""$oversizedOutputDir""" 2>&1 | Out-String
+        $extractExitCode = $LASTEXITCODE
+        $missingDimensionDidThrow = $false
+        try {
+            & $preflightScript -ExcelPath $missingDimensionPath -OutputDir $missingDimensionOutputDir
+        }
+        catch {
+            $missingDimensionDidThrow = $true
+        }
+
+        $extractExitCode | Should Not Be 0
+        $extractOutput | Should Match '事前チェックで処理を中止しました'
+        (Test-Path -LiteralPath (Join-Path $oversizedOutputDir 'workbook.json')) | Should Be $false
+        (Test-Path -LiteralPath (Join-Path $oversizedOutputDir 'preflight_report.json')) | Should Be $true
+
+        $oversizedReport = Get-Content -LiteralPath (Join-Path $oversizedOutputDir 'preflight_report.json') -Raw | ConvertFrom-Json
+        $missingDimensionReport = Get-Content -LiteralPath (Join-Path $missingDimensionOutputDir 'preflight_report.json') -Raw | ConvertFrom-Json
+
+        $oversizedReport.status | Should Be 'blocked'
+        ($oversizedReport.reasons -join ' ') | Should Match 'File size exceeds the blocking threshold'
+        $missingDimensionDidThrow | Should Be $true
+        $missingDimensionReport.status | Should Be 'blocked'
+        ($missingDimensionReport.reasons -join ' ') | Should Match 'dimension is missing'
     }
 
     It 'extracts workbook metadata, formulas, merge information, and xlsm VBA metadata' {
@@ -518,6 +631,7 @@ Describe 'Excel2LLM integration tests' {
         (Test-Path -LiteralPath (Join-Path $outsideDir 'README.md')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'GETTING_STARTED.md')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'run_all.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'run_preflight.bat')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'run_prompt_bundle.bat')) | Should Be $true
     }
 

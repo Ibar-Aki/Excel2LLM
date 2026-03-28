@@ -9,21 +9,15 @@ if /I "%~1"=="-h" goto :usage
 if /I "%~1"=="--help" goto :usage
 if /I "%~1"=="/?" goto :usage
 
-"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\run_all.ps1" %*
+"%PS_EXE%" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scripts\preflight_excel.ps1" %*
 exit /b %errorlevel%
 
 :usage
-echo Usage: run_all.bat "C:\path\to\book.xlsx" [-Verify] [extract options]
+echo Usage: run_preflight.bat "C:\path\to\book.xlsx" [options]
 echo.
 echo Common options:
-echo   -Verify
 echo   -OutputDir "C:\path\to\output"
 echo   -RedactPaths
-echo   -Sheets Summary,Calc
-echo.
-echo Notes:
-echo   - run_all uses the same mandatory preflight as run_extract.
-echo   - Oversized or corrupted workbooks are blocked before Excel starts.
 echo.
 echo See: docs\guides\MANUAL.md or docs\guides\USER_GUIDE.md
 exit /b 1

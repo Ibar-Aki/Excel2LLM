@@ -206,9 +206,6 @@ try {
     }
 
     Write-JsonFile -Data $manifest -Path $manifestPath
-    Write-NextStepBlock -Steps @(
-        ('prompt_*.txt を開いて LLM に貼り付ける: {0}' -f $resolvedOutputDir)
-    )
     Write-Host "Exported prompt bundle -> $resolvedOutputDir"
 }
 catch {

@@ -21,5 +21,9 @@ echo   -RedactPaths
 echo   -Sheets Summary,Calc
 echo   -ExcludeSheets WideTable
 echo.
+echo Notes:
+echo   - A mandatory preflight check runs before extraction.
+echo   - Oversized or corrupted workbooks are blocked before Excel starts.
+echo.
 echo See: docs\guides\MANUAL.md or docs\guides\USER_GUIDE.md
 exit /b 1

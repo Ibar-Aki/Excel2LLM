@@ -28,6 +28,7 @@ run_prompt_bundle.bat -Scenario general
 
 主に使う出力:
 
+- `output\preflight_report.json`
 - `output\workbook.json`
 - `output\llm_package.jsonl`
 - `output\verify_report.json`
@@ -52,6 +53,7 @@ run_prompt_bundle.bat -Scenario general
 ```bat
 run_all.bat "C:\path\to\book.xlsx"
 run_extract.bat "C:\path\to\book.xlsx"
+run_preflight.bat "C:\path\to\book.xlsx"
 run_pack.bat "output\workbook.json"
 run_prompt_bundle.bat -Scenario general
 run_verify.bat "C:\path\to\book.xlsx" -WorkbookJsonPath "output\workbook.json"
@@ -71,6 +73,7 @@ run_rebuild.bat "output\workbook.json"
 
 ## セキュリティ上の既定動作
 
+- `extract` の前に必須の preflight を行い、重すぎる Excel や破損疑いのある Excel は抽出開始前に停止します
 - `extract` と `verify` は、既定で Excel ブックマクロを無効化して開きます
 - 絶対パスを減らしたい場合は `-RedactPaths` を使います
 - 配布用フォルダ再生成は、既定で `distribution\` 配下のみ安全に削除します
