@@ -6,6 +6,9 @@ param(
     [string[]]$Sheets,
     [string[]]$ExcludeSheets,
     [switch]$CollectStyles,
+    [switch]$CollectNamedRanges,
+    [switch]$CollectDataValidations,
+    [switch]$CollectConditionalFormats,
     [switch]$SkipStyles,
     [switch]$NoRecalculate,
     [switch]$RedactPaths,
@@ -71,6 +74,11 @@ $workbook = $null
 $usedRange = $null
 $requestedSheets = Get-NormalizedSheetFilterList -Names $Sheets
 $excludedSheets = Get-NormalizedSheetFilterList -Names $ExcludeSheets
+$openXmlMetadata = [ordered]@{
+    named_ranges = @()
+    data_validations = @()
+    conditional_formats = @()
+}
 
 try {
     $resolvedExcelPath = Resolve-AbsolutePath -Path $ExcelPath
@@ -143,6 +151,13 @@ try {
 
     $selectedSheetCount = $selectedSheetOrder.Count
     $currentSheetNumber = 0
+    $openXmlMetadata = Get-OpenXmlWorkbookMetadata `
+        -WorkbookPath $resolvedExcelPath `
+        -IncludedSheetNames $selectedSheetOrder `
+        -CollectNamedRanges:$CollectNamedRanges `
+        -CollectDataValidations:$CollectDataValidations `
+        -CollectConditionalFormats:$CollectConditionalFormats `
+        -Warnings $warnings
 
     foreach ($sheet in $workbook.Worksheets) {
         $sheetName = [string]$sheet.Name
@@ -386,6 +401,9 @@ try {
         sheets = $sheetEntries
         cells = $cells
         merged_ranges = $mergedRanges
+        named_ranges = $openXmlMetadata.named_ranges
+        data_validations = $openXmlMetadata.data_validations
+        conditional_formats = $openXmlMetadata.conditional_formats
     }
 
     $stylePayload = [ordered]@{
@@ -395,6 +413,9 @@ try {
     }
 
     $styleStatus = if (-not $CollectStyles) { 'skipped' } elseif ($styles.Count -gt 0) { 'generated' } else { 'empty' }
+    $nameStatus = if (-not $CollectNamedRanges) { 'skipped' } elseif (@($openXmlMetadata.named_ranges).Count -gt 0) { 'generated' } else { 'empty' }
+    $validationStatus = if (-not $CollectDataValidations) { 'skipped' } elseif (@($openXmlMetadata.data_validations).Count -gt 0) { 'generated' } else { 'empty' }
+    $conditionalFormatStatus = if (-not $CollectConditionalFormats) { 'skipped' } elseif (@($openXmlMetadata.conditional_formats).Count -gt 0) { 'generated' } else { 'empty' }
     $status = if ($warnings.Count -gt 0) { 'warning' } else { 'success' }
 
     $manifestPayload = [ordered]@{
@@ -409,7 +430,13 @@ try {
         cell_count = $totalCellCount
         formula_count = $totalFormulaCount
         merged_range_count = $mergedRanges.Count
+        named_range_count = @($openXmlMetadata.named_ranges).Count
+        data_validation_count = @($openXmlMetadata.data_validations).Count
+        conditional_format_count = @($openXmlMetadata.conditional_formats).Count
         style_export_status = $styleStatus
+        name_export_status = $nameStatus
+        validation_export_status = $validationStatus
+        conditional_format_export_status = $conditionalFormatStatus
         verify_status = 'not_run'
         sheet_filter = [ordered]@{
             include = @($requestedSheets)
@@ -430,6 +457,9 @@ try {
     Write-Host ('  セル数:      {0}' -f $totalCellCount)
     Write-Host ('  数式数:      {0}' -f $totalFormulaCount)
     Write-Host ('  結合セル:    {0}' -f $mergedRanges.Count)
+    Write-Host ('  名前定義:    {0}' -f @($openXmlMetadata.named_ranges).Count)
+    Write-Host ('  入力規則:    {0}' -f @($openXmlMetadata.data_validations).Count)
+    Write-Host ('  条件付き書式:{0}' -f @($openXmlMetadata.conditional_formats).Count)
     Write-Host ('  警告:        {0}' -f $warningSummary)
     Write-Host ('  出力先:      {0}' -f $workbookJsonPath)
     Write-NextStepBlock -Steps @(

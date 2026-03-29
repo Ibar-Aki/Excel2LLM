@@ -320,6 +320,483 @@ function Convert-VariantValue {
     return [string]$Value
 }
 
+function Get-XmlAttributeValue {
+    param(
+        [Parameter(Mandatory)]
+        $Node,
+        [Parameter(Mandatory)]
+        [string[]]$Names
+    )
+
+    if ($null -eq $Node -or $null -eq $Node.Attributes) {
+        return $null
+    }
+
+    foreach ($attribute in $Node.Attributes) {
+        foreach ($name in $Names) {
+            if ($attribute.Name -eq $name -or $attribute.LocalName -eq $name) {
+                return [string]$attribute.Value
+            }
+        }
+    }
+
+    return $null
+}
+
+function Convert-OpenXmlBoolean {
+    param(
+        $Value,
+        [bool]$Default = $false
+    )
+
+    if ($null -eq $Value) {
+        return $Default
+    }
+
+    $normalized = ([string]$Value).Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $Default
+    }
+
+    switch ($normalized) {
+        '1' { return $true }
+        'true' { return $true }
+        '0' { return $false }
+        'false' { return $false }
+        default { return $Default }
+    }
+}
+
+function Get-ZipArchiveEntryText {
+    param(
+        [Parameter(Mandatory)]
+        $Archive,
+        [Parameter(Mandatory)]
+        [string]$EntryPath
+    )
+
+    $entry = $Archive.GetEntry($EntryPath)
+    if ($null -eq $entry) {
+        return $null
+    }
+
+    $stream = $null
+    $reader = $null
+    try {
+        $stream = $entry.Open()
+        $reader = [System.IO.StreamReader]::new($stream, [System.Text.UTF8Encoding]::new($false))
+        return $reader.ReadToEnd()
+    }
+    finally {
+        if ($null -ne $reader) {
+            $reader.Dispose()
+        }
+        elseif ($null -ne $stream) {
+            $stream.Dispose()
+        }
+    }
+}
+
+function Resolve-OpenXmlTargetPath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Target
+    )
+
+    $normalized = $Target.Replace('\', '/').Trim()
+    if ($normalized.StartsWith('/')) {
+        return $normalized.TrimStart('/')
+    }
+
+    if ($normalized.StartsWith('xl/')) {
+        return $normalized
+    }
+
+    while ($normalized.StartsWith('../')) {
+        $normalized = $normalized.Substring(3)
+    }
+
+    return 'xl/{0}' -f $normalized.TrimStart('./')
+}
+
+function Normalize-A1RangeText {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Range
+    )
+
+    return $Range.Trim().ToUpperInvariant().Replace('$', '')
+}
+
+function Split-OpenXmlSqref {
+    param(
+        [string]$Sqref
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Sqref)) {
+        return @()
+    }
+
+    return @($Sqref -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | ForEach-Object { Normalize-A1RangeText -Range ([string]$_) })
+}
+
+function Try-Get-A1RangeBounds {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Range,
+        [ref]$Bounds
+    )
+
+    $normalized = Normalize-A1RangeText -Range $Range
+
+    $columnRangeMatch = [System.Text.RegularExpressions.Regex]::Match($normalized, '^([A-Z]+)(?::([A-Z]+))?$')
+    if ($columnRangeMatch.Success) {
+        $startColumn = Convert-A1ToCoordinate -Address ($columnRangeMatch.Groups[1].Value + '1')
+        $endColumn = if ($columnRangeMatch.Groups[2].Success) {
+            Convert-A1ToCoordinate -Address ($columnRangeMatch.Groups[2].Value + '1')
+        }
+        else {
+            $startColumn
+        }
+
+        $Bounds.Value = [ordered]@{
+            first_row = 1
+            last_row = 1048576
+            first_column = [Math]::Min([int]$startColumn.column, [int]$endColumn.column)
+            last_column = [Math]::Max([int]$startColumn.column, [int]$endColumn.column)
+        }
+        return $true
+    }
+
+    $rowRangeMatch = [System.Text.RegularExpressions.Regex]::Match($normalized, '^(\d+)(?::(\d+))?$')
+    if ($rowRangeMatch.Success) {
+        $startRow = [int]$rowRangeMatch.Groups[1].Value
+        $endRow = if ($rowRangeMatch.Groups[2].Success) {
+            [int]$rowRangeMatch.Groups[2].Value
+        }
+        else {
+            $startRow
+        }
+
+        $Bounds.Value = [ordered]@{
+            first_row = [Math]::Min($startRow, $endRow)
+            last_row = [Math]::Max($startRow, $endRow)
+            first_column = 1
+            last_column = 16384
+        }
+        return $true
+    }
+
+    $match = [System.Text.RegularExpressions.Regex]::Match($normalized, '^([A-Z]+\d+)(?::([A-Z]+\d+))?$')
+    if (-not $match.Success) {
+        $Bounds.Value = $null
+        return $false
+    }
+
+    $startCoordinate = Convert-A1ToCoordinate -Address $match.Groups[1].Value
+    $endCoordinate = if ($match.Groups[2].Success) {
+        Convert-A1ToCoordinate -Address $match.Groups[2].Value
+    }
+    else {
+        $startCoordinate
+    }
+
+    $Bounds.Value = [ordered]@{
+        first_row = [Math]::Min([int]$startCoordinate.row, [int]$endCoordinate.row)
+        last_row = [Math]::Max([int]$startCoordinate.row, [int]$endCoordinate.row)
+        first_column = [Math]::Min([int]$startCoordinate.column, [int]$endCoordinate.column)
+        last_column = [Math]::Max([int]$startCoordinate.column, [int]$endCoordinate.column)
+    }
+    return $true
+}
+
+function Test-A1RangeOverlap {
+    param(
+        [Parameter(Mandatory)]
+        [string]$LeftRange,
+        [Parameter(Mandatory)]
+        [string]$RightRange
+    )
+
+    $leftBounds = $null
+    $rightBounds = $null
+    if (-not (Try-Get-A1RangeBounds -Range $LeftRange -Bounds ([ref]$leftBounds))) {
+        return $false
+    }
+    if (-not (Try-Get-A1RangeBounds -Range $RightRange -Bounds ([ref]$rightBounds))) {
+        return $false
+    }
+
+    if ($leftBounds.last_row -lt $rightBounds.first_row) {
+        return $false
+    }
+    if ($rightBounds.last_row -lt $leftBounds.first_row) {
+        return $false
+    }
+    if ($leftBounds.last_column -lt $rightBounds.first_column) {
+        return $false
+    }
+    if ($rightBounds.last_column -lt $leftBounds.first_column) {
+        return $false
+    }
+
+    return $true
+}
+
+function Test-SqrefOverlapsRange {
+    param(
+        [string]$Sqref,
+        [string]$Range
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Sqref) -or [string]::IsNullOrWhiteSpace($Range)) {
+        return $false
+    }
+
+    foreach ($segment in Split-OpenXmlSqref -Sqref $Sqref) {
+        if (Test-A1RangeOverlap -LeftRange $segment -RightRange $Range) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-DefinedNameTargetInfo {
+    param(
+        [string]$RefersTo
+    )
+
+    $targetInfo = [ordered]@{
+        target_sheet = $null
+        target_range = $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($RefersTo)) {
+        return $targetInfo
+    }
+
+    $normalized = ([string]$RefersTo).Trim()
+    $formulaText = if ($normalized.StartsWith('=')) {
+        $normalized.Substring(1).Trim()
+    }
+    else {
+        $normalized
+    }
+    $pattern = '^(?:''((?:[^'']|'''')+)''|([A-Za-z0-9_\.]+))!((?:\$?[A-Z]+\$?\d+)(?::\$?[A-Z]+\$?\d+)?|(?:\$?[A-Z]+)(?::\$?[A-Z]+)?|(?:\d+)(?::\d+)?)$'
+    $match = [System.Text.RegularExpressions.Regex]::Match($formulaText, $pattern)
+    if (-not $match.Success) {
+        return $targetInfo
+    }
+
+    $sheetName = if ($match.Groups[1].Success) {
+        $match.Groups[1].Value -replace '''''', ''''
+    }
+    else {
+        $match.Groups[2].Value
+    }
+
+    $targetInfo.target_sheet = $sheetName
+    $targetInfo.target_range = Normalize-A1RangeText -Range $match.Groups[3].Value
+    return $targetInfo
+}
+
+function Get-OpenXmlWorkbookMetadata {
+    param(
+        [Parameter(Mandatory)]
+        [string]$WorkbookPath,
+        [string[]]$IncludedSheetNames,
+        [switch]$CollectNamedRanges,
+        [switch]$CollectDataValidations,
+        [switch]$CollectConditionalFormats,
+        [System.Collections.Generic.List[string]]$Warnings
+    )
+
+    $metadata = [ordered]@{
+        named_ranges = @()
+        data_validations = @()
+        conditional_formats = @()
+    }
+
+    if (-not ($CollectNamedRanges -or $CollectDataValidations -or $CollectConditionalFormats)) {
+        return $metadata
+    }
+
+    $selectedSheetLookup = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($sheetName in @($IncludedSheetNames)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$sheetName)) {
+            [void]$selectedSheetLookup.Add([string]$sheetName)
+        }
+    }
+
+    $archive = $null
+    $namedRanges = [System.Collections.Generic.List[object]]::new()
+    $dataValidations = [System.Collections.Generic.List[object]]::new()
+    $conditionalFormats = [System.Collections.Generic.List[object]]::new()
+
+    try {
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($WorkbookPath)
+        $workbookXmlText = Get-ZipArchiveEntryText -Archive $archive -EntryPath 'xl/workbook.xml'
+        $workbookRelsXmlText = Get-ZipArchiveEntryText -Archive $archive -EntryPath 'xl/_rels/workbook.xml.rels'
+        if ([string]::IsNullOrWhiteSpace($workbookXmlText) -or [string]::IsNullOrWhiteSpace($workbookRelsXmlText)) {
+            return $metadata
+        }
+
+        [xml]$workbookXml = $workbookXmlText
+        [xml]$workbookRelsXml = $workbookRelsXmlText
+        $relationshipLookup = @{}
+
+        foreach ($relationshipNode in $workbookRelsXml.SelectNodes("/*[local-name()='Relationships']/*[local-name()='Relationship']")) {
+            $relationshipId = Get-XmlAttributeValue -Node $relationshipNode -Names @('Id')
+            $target = Get-XmlAttributeValue -Node $relationshipNode -Names @('Target')
+            if (-not [string]::IsNullOrWhiteSpace($relationshipId) -and -not [string]::IsNullOrWhiteSpace($target)) {
+                $relationshipLookup[$relationshipId] = Resolve-OpenXmlTargetPath -Target $target
+            }
+        }
+
+        $workbookSheets = [System.Collections.Generic.List[object]]::new()
+        foreach ($sheetNode in $workbookXml.SelectNodes("/*[local-name()='workbook']/*[local-name()='sheets']/*[local-name()='sheet']")) {
+            $sheetName = Get-XmlAttributeValue -Node $sheetNode -Names @('name')
+            $relationshipId = Get-XmlAttributeValue -Node $sheetNode -Names @('id', 'r:id')
+            $sheetEntryPath = $null
+            if ($relationshipLookup.ContainsKey($relationshipId)) {
+                $sheetEntryPath = $relationshipLookup[$relationshipId]
+            }
+
+            [void]$workbookSheets.Add([ordered]@{
+                name = $sheetName
+                entry_path = $sheetEntryPath
+            })
+        }
+
+        if ($CollectNamedRanges) {
+            $sheetNameByLocalId = @{}
+            for ($index = 0; $index -lt $workbookSheets.Count; $index++) {
+                $sheetNameByLocalId[[string]$index] = [string]$workbookSheets[$index].name
+            }
+
+            foreach ($definedNameNode in $workbookXml.SelectNodes("/*[local-name()='workbook']/*[local-name()='definedNames']/*[local-name()='definedName']")) {
+                $scopeSheetName = $null
+                $scopeType = 'workbook'
+                $localSheetId = Get-XmlAttributeValue -Node $definedNameNode -Names @('localSheetId')
+                if (-not [string]::IsNullOrWhiteSpace($localSheetId) -and $sheetNameByLocalId.ContainsKey($localSheetId)) {
+                    $scopeType = 'sheet'
+                    $scopeSheetName = [string]$sheetNameByLocalId[$localSheetId]
+                    if ($selectedSheetLookup.Count -gt 0 -and -not $selectedSheetLookup.Contains($scopeSheetName)) {
+                        continue
+                    }
+                }
+
+                $refersTo = [string]$definedNameNode.InnerText
+                $targetInfo = Get-DefinedNameTargetInfo -RefersTo $refersTo
+                if ($scopeType -eq 'workbook' -and $selectedSheetLookup.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace([string]$targetInfo.target_sheet) -and -not $selectedSheetLookup.Contains([string]$targetInfo.target_sheet)) {
+                    continue
+                }
+                [void]$namedRanges.Add([ordered]@{
+                    name = Get-XmlAttributeValue -Node $definedNameNode -Names @('name')
+                    scope_type = $scopeType
+                    scope_name = $scopeSheetName
+                    refers_to = $refersTo
+                    visible = -not (Convert-OpenXmlBoolean -Value (Get-XmlAttributeValue -Node $definedNameNode -Names @('hidden')) -Default $false)
+                    comment = Get-XmlAttributeValue -Node $definedNameNode -Names @('comment')
+                    target_sheet = $targetInfo.target_sheet
+                    target_range = $targetInfo.target_range
+                })
+            }
+        }
+
+        foreach ($sheetEntry in $workbookSheets) {
+            $sheetName = [string]$sheetEntry.name
+            if ($selectedSheetLookup.Count -gt 0 -and -not $selectedSheetLookup.Contains($sheetName)) {
+                continue
+            }
+
+            $sheetEntryPath = [string]$sheetEntry.entry_path
+            if ([string]::IsNullOrWhiteSpace($sheetEntryPath)) {
+                continue
+            }
+
+            $worksheetXmlText = Get-ZipArchiveEntryText -Archive $archive -EntryPath $sheetEntryPath
+            if ([string]::IsNullOrWhiteSpace($worksheetXmlText)) {
+                if ($null -ne $Warnings) {
+                    Add-WarningMessage -Warnings $Warnings -Message ("OpenXML worksheet entry could not be read for {0}: {1}" -f $sheetName, $sheetEntryPath)
+                }
+                continue
+            }
+
+            [xml]$worksheetXml = $worksheetXmlText
+
+            if ($CollectDataValidations) {
+                foreach ($validationNode in $worksheetXml.SelectNodes("/*[local-name()='worksheet']/*[local-name()='dataValidations']/*[local-name()='dataValidation']")) {
+                    $formula1Node = $validationNode.SelectSingleNode("./*[local-name()='formula1']")
+                    $formula2Node = $validationNode.SelectSingleNode("./*[local-name()='formula2']")
+                    $hideDropDownArrow = Convert-OpenXmlBoolean -Value (Get-XmlAttributeValue -Node $validationNode -Names @('showDropDown')) -Default $false
+                    [void]$dataValidations.Add([ordered]@{
+                        sheet = $sheetName
+                        sqref = Get-XmlAttributeValue -Node $validationNode -Names @('sqref')
+                        type = Get-XmlAttributeValue -Node $validationNode -Names @('type')
+                        operator = Get-XmlAttributeValue -Node $validationNode -Names @('operator')
+                        allow_blank = Convert-OpenXmlBoolean -Value (Get-XmlAttributeValue -Node $validationNode -Names @('allowBlank')) -Default $false
+                        show_input_message = Convert-OpenXmlBoolean -Value (Get-XmlAttributeValue -Node $validationNode -Names @('showInputMessage')) -Default $false
+                        show_error_message = Convert-OpenXmlBoolean -Value (Get-XmlAttributeValue -Node $validationNode -Names @('showErrorMessage')) -Default $false
+                        show_drop_down = -not $hideDropDownArrow
+                        error_style = Get-XmlAttributeValue -Node $validationNode -Names @('errorStyle')
+                        error_title = Get-XmlAttributeValue -Node $validationNode -Names @('errorTitle')
+                        error_message = Get-XmlAttributeValue -Node $validationNode -Names @('error')
+                        prompt_title = Get-XmlAttributeValue -Node $validationNode -Names @('promptTitle')
+                        prompt_message = Get-XmlAttributeValue -Node $validationNode -Names @('prompt')
+                        formula1 = if ($null -eq $formula1Node) { $null } else { [string]$formula1Node.InnerText }
+                        formula2 = if ($null -eq $formula2Node) { $null } else { [string]$formula2Node.InnerText }
+                    })
+                }
+            }
+
+            if ($CollectConditionalFormats) {
+                foreach ($conditionalFormattingNode in $worksheetXml.SelectNodes("/*[local-name()='worksheet']/*[local-name()='conditionalFormatting']")) {
+                    $sqref = Get-XmlAttributeValue -Node $conditionalFormattingNode -Names @('sqref')
+                    foreach ($ruleNode in $conditionalFormattingNode.SelectNodes("./*[local-name()='cfRule']")) {
+                        $formulas = @($ruleNode.SelectNodes("./*[local-name()='formula']") | ForEach-Object { [string]$_.InnerText })
+                        [void]$conditionalFormats.Add([ordered]@{
+                            sheet = $sheetName
+                            sqref = $sqref
+                            type = Get-XmlAttributeValue -Node $ruleNode -Names @('type')
+                            operator = Get-XmlAttributeValue -Node $ruleNode -Names @('operator')
+                            priority = $(
+                                $priorityValue = Get-XmlAttributeValue -Node $ruleNode -Names @('priority')
+                                if ([string]::IsNullOrWhiteSpace($priorityValue)) { $null } else { [int]$priorityValue }
+                            )
+                            stop_if_true = Convert-OpenXmlBoolean -Value (Get-XmlAttributeValue -Node $ruleNode -Names @('stopIfTrue')) -Default $false
+                            formulas = $formulas
+                            dxf_id = $(
+                                $dxfValue = Get-XmlAttributeValue -Node $ruleNode -Names @('dxfId')
+                                if ([string]::IsNullOrWhiteSpace($dxfValue)) { $null } else { [int]$dxfValue }
+                            )
+                            text = Get-XmlAttributeValue -Node $ruleNode -Names @('text')
+                            time_period = Get-XmlAttributeValue -Node $ruleNode -Names @('timePeriod')
+                            rank = $(
+                                $rankValue = Get-XmlAttributeValue -Node $ruleNode -Names @('rank')
+                                if ([string]::IsNullOrWhiteSpace($rankValue)) { $null } else { [int]$rankValue }
+                            )
+                            percent = Convert-OpenXmlBoolean -Value (Get-XmlAttributeValue -Node $ruleNode -Names @('percent')) -Default $false
+                            bottom = Convert-OpenXmlBoolean -Value (Get-XmlAttributeValue -Node $ruleNode -Names @('bottom')) -Default $false
+                        })
+                    }
+                }
+            }
+        }
+    }
+    finally {
+        if ($null -ne $archive) {
+            $archive.Dispose()
+        }
+    }
+
+    $metadata.named_ranges = @($namedRanges.ToArray())
+    $metadata.data_validations = @($dataValidations.ToArray())
+    $metadata.conditional_formats = @($conditionalFormats.ToArray())
+    return $metadata
+}
+
 function Add-WarningMessage {
     param(
         [Parameter(Mandatory)]

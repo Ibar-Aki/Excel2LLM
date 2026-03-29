@@ -15,7 +15,8 @@ function New-MiniWorkbook {
     param(
         [Parameter(Mandatory)]
         [string]$Path,
-        [switch]$IncludeStyles
+        [switch]$IncludeStyles,
+        [switch]$IncludeMetadata
     )
 
     $excel = $null
@@ -26,6 +27,7 @@ function New-MiniWorkbook {
         $workbook = $excel.Workbooks.Add()
         $sheet = $workbook.Worksheets.Item(1)
         $sheet.Name = 'Grid'
+        $lookupSheet = $null
 
         for ($row = 1; $row -le 3; $row++) {
             for ($column = 1; $column -le 4; $column++) {
@@ -33,6 +35,9 @@ function New-MiniWorkbook {
             }
         }
 
+        $sheet.Cells.Item(1, 3).Value2 = 10
+        $sheet.Cells.Item(2, 3).Value2 = 20
+        $sheet.Cells.Item(3, 3).Value2 = 30
         $sheet.Cells.Item(3, 4).Formula = '=A1&B1'
         $sheet.Range('A2:B2').Merge()
         $sheet.Range('A2').Value2 = 'Merged'
@@ -42,6 +47,57 @@ function New-MiniWorkbook {
             $sheet.Range('A1').Font.Color = 16777215
             $sheet.Range('A1').WrapText = $true
             $sheet.Range('A1').Borders.Item(7).LineStyle = 1
+        }
+
+        if ($IncludeMetadata) {
+            $lookupSheet = $workbook.Worksheets.Add()
+            $lookupSheet.Name = 'Lookup'
+            $lookupSheet.Cells.Item(1, 1).Value2 = 'LookupValue'
+
+            $workbook.Names.Add('WorkbookInput', "='Grid'!`$B`$1") | Out-Null
+            $workbook.Names.Add('ThresholdConstant', '=15') | Out-Null
+            $workbook.Names.Add('LookupOnlyName', "='Lookup'!`$A`$1") | Out-Null
+
+            $validationRange = $null
+            $validation = $null
+            $conditionalRange = $null
+            $formatConditions = $null
+            $condition = $null
+            try {
+                $validationRange = $sheet.Range('B2:B3')
+                $validation = $validationRange.Validation
+                $validation.Delete()
+                $validation.Add(3, 1, 1, 'Yes,No') | Out-Null
+                $validation.IgnoreBlank = $true
+                $validation.InCellDropdown = $true
+                $validation.InputTitle = '入力候補'
+                $validation.InputMessage = 'Yes または No を入力してください'
+                $validation.ErrorTitle = '入力エラー'
+                $validation.ErrorMessage = '候補以外は入力できません'
+
+                $conditionalRange = $sheet.Range('C1:C3')
+                $formatConditions = $conditionalRange.FormatConditions
+                $condition = $formatConditions.Add(1, 5, '15')
+                $condition.StopIfTrue = $true
+                $condition.Interior.Color = 65535
+            }
+            finally {
+                if ($null -ne $condition) {
+                    Release-ComReference $condition
+                }
+                if ($null -ne $formatConditions) {
+                    Release-ComReference $formatConditions
+                }
+                if ($null -ne $conditionalRange) {
+                    Release-ComReference $conditionalRange
+                }
+                if ($null -ne $validation) {
+                    Release-ComReference $validation
+                }
+                if ($null -ne $validationRange) {
+                    Release-ComReference $validationRange
+                }
+            }
         }
 
         $directory = Split-Path -Path $Path -Parent
@@ -65,8 +121,42 @@ function New-MiniWorkbook {
             }
             Release-ComReference $excel
         }
+        if ($null -ne $lookupSheet) {
+            Release-ComReference $lookupSheet
+        }
         [GC]::Collect()
         [GC]::WaitForPendingFinalizers()
+    }
+}
+
+function Set-MetadataSqrefVariants {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [string]$ValidationSqref = 'B:B',
+        [string]$ConditionalFormattingSqref = '3:3'
+    )
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $archive = [System.IO.Compression.ZipArchive]::new($stream, [System.IO.Compression.ZipArchiveMode]::Read, $false)
+        try {
+            $worksheetEntries = @($archive.Entries | Where-Object { $_.FullName -like 'xl/worksheets/*.xml' } | Select-Object -ExpandProperty FullName)
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+
+    foreach ($sheetXmlPath in $worksheetEntries) {
+        $sheetXml = Get-ZipEntryText -Path $Path -EntryPath $sheetXmlPath
+        $updatedXml = $sheetXml.Replace('sqref="B2:B3"', ('sqref="' + $ValidationSqref + '"')).Replace('sqref="C1:C3"', ('sqref="' + $ConditionalFormattingSqref + '"'))
+        if ($updatedXml -ne $sheetXml) {
+            Set-ZipEntryText -Path $Path -EntryPath $sheetXmlPath -Content $updatedXml
+        }
     }
 }
 

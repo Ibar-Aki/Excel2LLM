@@ -7,6 +7,9 @@ param(
     [string[]]$Sheets,
     [string[]]$ExcludeSheets,
     [switch]$CollectStyles,
+    [switch]$CollectNamedRanges,
+    [switch]$CollectDataValidations,
+    [switch]$CollectConditionalFormats,
     [switch]$SkipStyles,
     [switch]$NoRecalculate,
     [switch]$RedactPaths,
@@ -30,6 +33,9 @@ try {
         ExcelPath = $resolvedExcelPath
         OutputDir = $resolvedOutputDir
         CollectStyles = $CollectStyles
+        CollectNamedRanges = $CollectNamedRanges
+        CollectDataValidations = $CollectDataValidations
+        CollectConditionalFormats = $CollectConditionalFormats
         SkipStyles = $SkipStyles
         NoRecalculate = $NoRecalculate
         RedactPaths = $RedactPaths
@@ -54,7 +60,12 @@ try {
             -RedactPaths:$RedactPaths
     }
 
-    & (Join-Path $PSScriptRoot 'pack_for_llm.ps1') -WorkbookJsonPath $workbookJsonPath -OutputPath $jsonlPath
+    & (Join-Path $PSScriptRoot 'pack_for_llm.ps1') `
+        -WorkbookJsonPath $workbookJsonPath `
+        -OutputPath $jsonlPath `
+        -IncludeNamedRanges:$CollectNamedRanges `
+        -IncludeDataValidations:$CollectDataValidations `
+        -IncludeConditionalFormats:$CollectConditionalFormats
 
     $sw.Stop()
     Write-Host '=== 一括実行結果 ==='

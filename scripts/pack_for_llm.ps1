@@ -7,6 +7,9 @@ param(
     [string]$ChunkBy = 'sheet',
     [int]$MaxCells = 500,
     [switch]$IncludeStyles,
+    [switch]$IncludeNamedRanges,
+    [switch]$IncludeDataValidations,
+    [switch]$IncludeConditionalFormats,
     [string]$StylesJsonPath
 )
 
@@ -48,7 +51,19 @@ function Get-ChunkPayload {
         [object[]]$ChunkCells,
         [Parameter(Mandatory)]
         [hashtable]$StyleLookup,
-        [switch]$IncludeStyles
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$NamedRanges,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$DataValidations,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$ConditionalFormats,
+        [switch]$IncludeStyles,
+        [switch]$IncludeNamedRanges,
+        [switch]$IncludeDataValidations,
+        [switch]$IncludeConditionalFormats
     )
 
     $payloadCells = foreach ($cell in $ChunkCells) {
@@ -79,12 +94,29 @@ function Get-ChunkPayload {
         $entry
     }
 
-    return [ordered]@{
+    $payload = [ordered]@{
         sheet_name = $SheetName
         range = $ChunkRange
         cell_count = $ChunkCells.Count
         cells = $payloadCells
     }
+
+    $metadata = [ordered]@{}
+    if ($IncludeNamedRanges) {
+        $metadata['named_ranges'] = @(Get-RelevantNamedRangesForChunk -NamedRanges $NamedRanges -SheetName $SheetName -ChunkRange $ChunkRange)
+    }
+    if ($IncludeDataValidations) {
+        $metadata['data_validations'] = @(Get-RelevantSheetRulesForChunk -Rules $DataValidations -SheetName $SheetName -ChunkRange $ChunkRange)
+    }
+    if ($IncludeConditionalFormats) {
+        $metadata['conditional_formats'] = @(Get-RelevantSheetRulesForChunk -Rules $ConditionalFormats -SheetName $SheetName -ChunkRange $ChunkRange)
+    }
+
+    if ($metadata.Count -gt 0) {
+        $payload['metadata'] = $metadata
+    }
+
+    return $payload
 }
 
 function Add-ChunkRecord {
@@ -98,7 +130,19 @@ function Add-ChunkRecord {
         [object[]]$ChunkCells,
         [Parameter(Mandatory)]
         [hashtable]$StyleLookup,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$NamedRanges,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$DataValidations,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$ConditionalFormats,
         [switch]$IncludeStyles,
+        [switch]$IncludeNamedRanges,
+        [switch]$IncludeDataValidations,
+        [switch]$IncludeConditionalFormats,
         [Parameter(Mandatory)]
         [ref]$ChunkIndex
     )
@@ -108,7 +152,18 @@ function Add-ChunkRecord {
     }
 
     $chunkRange = Get-ChunkRange -ChunkCells $ChunkCells
-    $payload = Get-ChunkPayload -SheetName $SheetName -ChunkRange $chunkRange -ChunkCells $ChunkCells -StyleLookup $StyleLookup -IncludeStyles:$IncludeStyles
+    $payload = Get-ChunkPayload `
+        -SheetName $SheetName `
+        -ChunkRange $chunkRange `
+        -ChunkCells $ChunkCells `
+        -StyleLookup $StyleLookup `
+        -NamedRanges $NamedRanges `
+        -DataValidations $DataValidations `
+        -ConditionalFormats $ConditionalFormats `
+        -IncludeStyles:$IncludeStyles `
+        -IncludeNamedRanges:$IncludeNamedRanges `
+        -IncludeDataValidations:$IncludeDataValidations `
+        -IncludeConditionalFormats:$IncludeConditionalFormats
     $payloadJson = $payload | ConvertTo-Json -Depth 40 -Compress
     $formulaCells = @($ChunkCells | Where-Object { $_.has_formula } | ForEach-Object { $_.address })
 
@@ -121,9 +176,79 @@ function Add-ChunkRecord {
         formula_cells = $formulaCells
         token_estimate = [Math]::Ceiling($payloadJson.Length / 4)
         includes_styles = [bool]$IncludeStyles
+        includes_named_ranges = [bool]$IncludeNamedRanges
+        includes_data_validations = [bool]$IncludeDataValidations
+        includes_conditional_formats = [bool]$IncludeConditionalFormats
     })
 
     $ChunkIndex.Value++
+}
+
+function Get-RelevantNamedRangesForChunk {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$NamedRanges,
+        [Parameter(Mandatory)]
+        [string]$SheetName,
+        [Parameter(Mandatory)]
+        [string]$ChunkRange
+    )
+
+    $matches = [System.Collections.Generic.List[object]]::new()
+    foreach ($namedRange in @($NamedRanges)) {
+        $scopeType = [string]$namedRange.scope_type
+        $scopeName = [string]$namedRange.scope_name
+        $targetSheet = [string]$namedRange.target_sheet
+        $targetRange = [string]$namedRange.target_range
+        $include = $false
+
+        if ($scopeType -eq 'sheet' -and $scopeName -eq $SheetName) {
+            $include = $true
+        }
+        elseif ($scopeType -eq 'workbook') {
+            if ([string]::IsNullOrWhiteSpace($targetSheet)) {
+                $include = $true
+            }
+            elseif ($targetSheet -eq $SheetName) {
+                if ([string]::IsNullOrWhiteSpace($targetRange) -or (Test-A1RangeOverlap -LeftRange $targetRange -RightRange $ChunkRange)) {
+                    $include = $true
+                }
+            }
+        }
+
+        if ($include) {
+            [void]$matches.Add($namedRange)
+        }
+    }
+
+    return @($matches.ToArray())
+}
+
+function Get-RelevantSheetRulesForChunk {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$Rules,
+        [Parameter(Mandatory)]
+        [string]$SheetName,
+        [Parameter(Mandatory)]
+        [string]$ChunkRange
+    )
+
+    $matches = [System.Collections.Generic.List[object]]::new()
+    foreach ($rule in @($Rules)) {
+        if ([string]$rule.sheet -ne $SheetName) {
+            continue
+        }
+
+        $sqref = [string]$rule.sqref
+        if ([string]::IsNullOrWhiteSpace($sqref) -or (Test-SqrefOverlapsRange -Sqref $sqref -Range $ChunkRange)) {
+            [void]$matches.Add($rule)
+        }
+    }
+
+    return @($matches.ToArray())
 }
 
 try {
@@ -141,6 +266,9 @@ try {
     $workbookData = Get-Content -LiteralPath $resolvedWorkbookJsonPath -Raw | ConvertFrom-Json
     $styleLookup = @{}
     $cellsBySheet = Group-CellsBySheet -Cells @($workbookData.cells)
+    $namedRanges = @($workbookData.named_ranges)
+    $dataValidations = @($workbookData.data_validations)
+    $conditionalFormats = @($workbookData.conditional_formats)
 
     if ($IncludeStyles -and (Test-Path -LiteralPath $StylesJsonPath)) {
         $stylesData = Get-Content -LiteralPath $StylesJsonPath -Raw | ConvertFrom-Json
@@ -173,7 +301,7 @@ try {
             for ($offset = 0; $offset -lt $sheetCells.Count; $offset += $MaxCells) {
                 $upperBound = [Math]::Min($offset + $MaxCells - 1, $sheetCells.Count - 1)
                 $chunkCells = @($sheetCells[$offset..$upperBound])
-                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $chunkCells -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $chunkCells -StyleLookup $styleLookup -NamedRanges $namedRanges -DataValidations $dataValidations -ConditionalFormats $conditionalFormats -IncludeStyles:$IncludeStyles -IncludeNamedRanges:$IncludeNamedRanges -IncludeDataValidations:$IncludeDataValidations -IncludeConditionalFormats:$IncludeConditionalFormats -ChunkIndex ([ref]$chunkIndex)
             }
             continue
         }
@@ -184,20 +312,20 @@ try {
             $rowCells = @($rowGroup.Group | Sort-Object column)
 
             if ($currentChunk.Count -gt 0 -and ($currentChunk.Count + $rowCells.Count) -gt $MaxCells) {
-                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+                Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -NamedRanges $namedRanges -DataValidations $dataValidations -ConditionalFormats $conditionalFormats -IncludeStyles:$IncludeStyles -IncludeNamedRanges:$IncludeNamedRanges -IncludeDataValidations:$IncludeDataValidations -IncludeConditionalFormats:$IncludeConditionalFormats -ChunkIndex ([ref]$chunkIndex)
                 $currentChunk = New-Object System.Collections.Generic.List[object]
             }
 
             if ($rowCells.Count -gt $MaxCells) {
                 if ($currentChunk.Count -gt 0) {
-                    Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+                    Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -NamedRanges $namedRanges -DataValidations $dataValidations -ConditionalFormats $conditionalFormats -IncludeStyles:$IncludeStyles -IncludeNamedRanges:$IncludeNamedRanges -IncludeDataValidations:$IncludeDataValidations -IncludeConditionalFormats:$IncludeConditionalFormats -ChunkIndex ([ref]$chunkIndex)
                     $currentChunk = New-Object System.Collections.Generic.List[object]
                 }
 
                 for ($offset = 0; $offset -lt $rowCells.Count; $offset += $MaxCells) {
                     $upperBound = [Math]::Min($offset + $MaxCells - 1, $rowCells.Count - 1)
                     $rowSlice = @($rowCells[$offset..$upperBound])
-                    Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $rowSlice -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+                    Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells $rowSlice -StyleLookup $styleLookup -NamedRanges $namedRanges -DataValidations $dataValidations -ConditionalFormats $conditionalFormats -IncludeStyles:$IncludeStyles -IncludeNamedRanges:$IncludeNamedRanges -IncludeDataValidations:$IncludeDataValidations -IncludeConditionalFormats:$IncludeConditionalFormats -ChunkIndex ([ref]$chunkIndex)
                 }
                 continue
             }
@@ -208,7 +336,7 @@ try {
         }
 
         if ($currentChunk.Count -gt 0) {
-            Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -IncludeStyles:$IncludeStyles -ChunkIndex ([ref]$chunkIndex)
+            Add-ChunkRecord -Chunks $chunks -SheetName $sheet.sheet_name -ChunkCells ([object[]]$currentChunk.ToArray()) -StyleLookup $styleLookup -NamedRanges $namedRanges -DataValidations $dataValidations -ConditionalFormats $conditionalFormats -IncludeStyles:$IncludeStyles -IncludeNamedRanges:$IncludeNamedRanges -IncludeDataValidations:$IncludeDataValidations -IncludeConditionalFormats:$IncludeConditionalFormats -ChunkIndex ([ref]$chunkIndex)
         }
     }
 

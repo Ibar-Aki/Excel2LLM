@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-10 00:55 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-28
+- 更新日: 2026-03-29
 
 ## preflight_report.json
 
@@ -30,6 +30,9 @@
   "sheets": [],
   "cells": [],
   "merged_ranges": [],
+  "named_ranges": [],
+  "data_validations": [],
+  "conditional_formats": [],
   "generated_at": "",
   "generator": ""
 }
@@ -76,6 +79,51 @@
 - `comment_threaded`
 - `hyperlink`
 
+### named_ranges[]
+
+- `name`
+- `scope_type`: `workbook | sheet`
+- `scope_name`: シートスコープ時のシート名。ブックスコープなら `null`
+- `refers_to`: Excel の定義式そのもの
+- `visible`
+- `comment`
+- `target_sheet`: 単純な範囲参照として解釈できた場合の参照先シート
+- `target_range`: 単純な範囲参照として解釈できた場合の参照先範囲
+
+### data_validations[]
+
+- `sheet`
+- `sqref`: 対象範囲。`A1:B5` だけでなく `B:B` や `3:3` のような列全体 / 行全体もありえる
+- `type`
+- `operator`
+- `allow_blank`
+- `show_input_message`
+- `show_error_message`
+- `show_drop_down`: ドロップダウン矢印を表示するか
+- `error_style`
+- `error_title`
+- `error_message`
+- `prompt_title`
+- `prompt_message`
+- `formula1`
+- `formula2`
+
+### conditional_formats[]
+
+- `sheet`
+- `sqref`
+- `type`
+- `operator`
+- `priority`
+- `stop_if_true`
+- `formulas`
+- `dxf_id`
+- `text`
+- `time_period`
+- `rank`
+- `percent`
+- `bottom`
+
 ## styles.json
 
 `styles.json` は補助情報です。既定では空またはスキップ状態で生成し、`-CollectStyles` 指定時だけ best effort で内容を埋めます。取得失敗時も主処理は継続します。
@@ -111,6 +159,15 @@
 - `formula_cells`
 - `token_estimate`
 - `includes_styles`
+- `includes_named_ranges`
+- `includes_data_validations`
+- `includes_conditional_formats`
+
+`payload.metadata` は以下の任意ブロックです。
+
+- `named_ranges`: `-IncludeNamedRanges` 指定時のみ
+- `data_validations`: `-IncludeDataValidations` 指定時のみ
+- `conditional_formats`: `-IncludeConditionalFormats` 指定時のみ
 
 ## manifest.json
 
@@ -129,6 +186,12 @@
 - `formula_count`
 - `merged_range_count`
 - `style_export_status`
+- `named_range_count`
+- `data_validation_count`
+- `conditional_format_count`
+- `name_export_status`
+- `validation_export_status`
+- `conditional_format_export_status`
 - `verify_status`
 
 ## verify_report.json

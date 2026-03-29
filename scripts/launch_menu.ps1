@@ -70,7 +70,7 @@ function Get-DefaultStylesJsonPath {
 Write-Host '=== Excel2LLM ==='
 Write-Host '1. Excel を処理する'
 Write-Host '2. Excel を処理して照合もする'
-Write-Host '3. 見た目情報も含めて抽出する'
+Write-Host '3. 見た目情報や追加ルールも含めて抽出する'
 Write-Host '4. 事前チェックだけ行う'
 Write-Host '5. 抽出結果と元 Excel を照合する'
 Write-Host '6. 抽出結果を分割し直す'
@@ -96,7 +96,7 @@ try {
         }
         '3' {
             $excelPath = Read-RequiredInput -Prompt 'Excel ファイルのパスを入力してください'
-            & $extractScript -ExcelPath $excelPath -CollectStyles
+            & $extractScript -ExcelPath $excelPath -CollectStyles -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats
             exit 0
         }
         '4' {

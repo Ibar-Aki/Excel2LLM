@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-28 00:20 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-28
+- 更新日: 2026-03-29
 
 ## この文書だけ読めば使えます
 
@@ -41,7 +41,7 @@
 | --- | --- | --- |
 | 1 | Excel を処理する | まず普通に使いたい |
 | 2 | Excel を処理して照合もする | 重要な資料なので確認もしたい |
-| 3 | 見た目情報も含めて抽出する | 色や罫線も補助情報として取りたい |
+| 3 | 見た目情報や追加ルールも含めて抽出する | 色や罫線に加えて、名前定義、入力規則、条件付き書式も見たい |
 | 5 | 抽出結果と元 Excel を照合する | すでに `workbook.json` があり、あとから確認したい |
 | 7 | 抽出結果から Excel を復元する | `workbook.json` から Excel を作り直したい |
 | 8 | 最新結果から指示文セットを作る | LLM に貼り付ける文を作りたい |
@@ -75,6 +75,12 @@ Excel2LLM.bat "C:\Data\book.xlsx" -Verify
 Excel2LLM.bat -Extract "C:\Data\book.xlsx" -CollectStyles
 ```
 
+名前定義、入力規則、条件付き書式も含めたい場合:
+
+```bat
+Excel2LLM.bat -Extract "C:\Data\book.xlsx" -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats
+```
+
 ## 実行すると何が作られるか
 
 実行するたびに、`output` の中へ **新しい実行結果フォルダ** が作られます。
@@ -103,6 +109,9 @@ output\estimate_20260328-143500
 | `preflight_report.json` | `Excel2LLM.bat` の通常処理 / `-Extract` / `-Preflight` | 事前チェック結果 |
 | `workbook.json` | `Excel2LLM.bat` の通常処理 / `-Extract` | Excel 全体を保存した正本 |
 | `styles.json` | `-CollectStyles` を付けたとき | 色や罫線などの補助情報 |
+| `workbook.json > named_ranges` | `-CollectNamedRanges` を付けたとき | 名前定義・名前付き範囲 |
+| `workbook.json > data_validations` | `-CollectDataValidations` を付けたとき | 入力規則 |
+| `workbook.json > conditional_formats` | `-CollectConditionalFormats` を付けたとき | 条件付き書式 |
 | `manifest.json` | `Excel2LLM.bat` の通常処理 / `-Extract` | 抽出結果の要約 |
 | `llm_package.jsonl` | `Excel2LLM.bat` の通常処理 / `-Pack` | LLM に渡しやすい分割済みデータ |
 | `verify_report.json` | `Excel2LLM.bat "..." -Verify` または `Excel2LLM.bat -Verify ...` | Excel との突き合わせ結果 |
@@ -128,6 +137,9 @@ output\estimate_20260328-143500
 | `チャンク` | LLM に一度に渡すデータのかたまり |
 | `prompt bundle` | LLM に貼り付ける指示文セット |
 | `verify` | 抽出結果と Excel を突き合わせる確認 |
+| `名前定義` | 数式の中で意味のある名前を付けた参照 |
+| `入力規則` | セルに入力してよい値のルール |
+| `条件付き書式` | 条件に応じて色や見た目を変えるルール |
 
 ## 使い分け表
 
@@ -137,6 +149,7 @@ output\estimate_20260328-143500
 | 重要な Excel を慎重に扱いたい | `Excel2LLM.bat` + `-Verify` |
 | 危険な Excel か先に確認したい | `Excel2LLM.bat -Preflight "..."` |
 | 見た目情報も含めて抽出したい | `Excel2LLM.bat -Extract "..." -CollectStyles` |
+| 名前定義、入力規則、条件付き書式も見たい | `Excel2LLM.bat -Extract "..." -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats` |
 | LLM に貼り付ける文を作りたい | `Excel2LLM.bat -PromptBundle` |
 | `workbook.json` から Excel を作り直したい | `Excel2LLM.bat -Rebuild "...\workbook.json"` |
 
@@ -147,9 +160,11 @@ output\estimate_20260328-143500
 | 普通に処理する | `Excel2LLM.bat "C:\Data\book.xlsx"` |
 | 処理して照合もする | `Excel2LLM.bat "C:\Data\book.xlsx" -Verify` |
 | 見た目情報も含めて抽出する | `Excel2LLM.bat -Extract "C:\Data\book.xlsx" -CollectStyles` |
+| 名前定義、入力規則、条件付き書式も含めて抽出する | `Excel2LLM.bat -Extract "C:\Data\book.xlsx" -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats` |
 | 事前チェックだけ行う | `Excel2LLM.bat -Preflight "C:\Data\book.xlsx"` |
 | 抽出結果を照合する | `Excel2LLM.bat -Verify "C:\Data\book.xlsx" -WorkbookJsonPath "output\run\workbook.json"` |
 | 抽出結果を分割し直す | `Excel2LLM.bat -Pack "output\run\workbook.json" -ChunkBy range -MaxCells 300` |
+| 追加ルールも LLM 用に含める | `Excel2LLM.bat -Pack "output\run\workbook.json" -IncludeNamedRanges -IncludeDataValidations -IncludeConditionalFormats` |
 | Excel を復元する | `Excel2LLM.bat -Rebuild "output\run\workbook.json" -StylesJsonPath "output\run\styles.json"` |
 | 指示文セットを作る | `Excel2LLM.bat -PromptBundle -Scenario general` |
 | 動作確認をする | `Excel2LLM.bat -SelfTest` |
@@ -189,6 +204,7 @@ LLM 向けの指示文例は `docs\reference\LLM_PROMPT_FORMATS.md` にありま
 - `Excel2LLM.bat` は、抽出前に自動で事前チェックを行います
 - 重すぎる Excel や壊れている疑いがある Excel は、Excel を開く前に停止します
 - `Excel2LLM.bat -PromptBundle` は、直前の実行結果フォルダを自動で使います
+- `-CollectNamedRanges`, `-CollectDataValidations`, `-CollectConditionalFormats` は、必要なときだけ付けてください
 - `Excel2LLM.bat` は処理後に画面を閉じません。結果確認後にキーを押して閉じます
 - 詳細機能を直接使いたい場合だけ `tools\advanced\` の `bat` も利用できます
 - 絶対パスを減らしたい場合は `-RedactPaths` を使います

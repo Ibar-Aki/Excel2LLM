@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-12 00:50 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-28
+- 更新日: 2026-03-29
 
 ## 最初に読む順番
 
@@ -18,6 +18,7 @@
 データ形式を確認したい人:
 
 1. `reference/FORMAT.md`
+2. `reference/EXTRACTION_COVERAGE.md`
 
 ## 文書の役割
 
@@ -29,6 +30,8 @@
   - 実務での使い方と活用例
 - `reference/FORMAT.md`
   - `workbook.json` などの形式定義
+- `reference/EXTRACTION_COVERAGE.md`
+  - 取れる情報 / 取れない情報の一覧
 - `reference/LLM_PROMPT_FORMATS.md`
   - LLM への指示テンプレート
 - `reference/VBA_HELPER.md`

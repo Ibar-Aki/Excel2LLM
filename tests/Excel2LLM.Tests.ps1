@@ -217,6 +217,98 @@ Describe 'Excel2LLM integration tests' {
         $xlsmWorkbookJson.workbook.has_vba | Should Be $true
     }
 
+    It 'extracts named ranges, data validations, and conditional formats only when requested' {
+        $workspace = New-TestWorkspace -Name 'metadata-extract'
+        $bookPath = Join-Path $workspace 'metadata.xlsx'
+        $defaultOutputDir = Join-Path $workspace 'default-output'
+        $metadataOutputDir = Join-Path $workspace 'metadata-output'
+
+        New-MiniWorkbook -Path $bookPath -IncludeMetadata
+        Set-MetadataSqrefVariants -Path $bookPath
+
+        & $extractScript -ExcelPath $bookPath -OutputDir $defaultOutputDir
+        & $extractScript -ExcelPath $bookPath -OutputDir $metadataOutputDir -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats
+
+        $defaultWorkbook = Get-Content -LiteralPath (Join-Path $defaultOutputDir 'workbook.json') -Raw | ConvertFrom-Json
+        $defaultManifest = Get-Content -LiteralPath (Join-Path $defaultOutputDir 'manifest.json') -Raw | ConvertFrom-Json
+        $metadataWorkbook = Get-Content -LiteralPath (Join-Path $metadataOutputDir 'workbook.json') -Raw | ConvertFrom-Json
+        $metadataManifest = Get-Content -LiteralPath (Join-Path $metadataOutputDir 'manifest.json') -Raw | ConvertFrom-Json
+
+        @($defaultWorkbook.named_ranges).Count | Should Be 0
+        @($defaultWorkbook.data_validations).Count | Should Be 0
+        @($defaultWorkbook.conditional_formats).Count | Should Be 0
+        $defaultManifest.name_export_status | Should Be 'skipped'
+        $defaultManifest.validation_export_status | Should Be 'skipped'
+        $defaultManifest.conditional_format_export_status | Should Be 'skipped'
+
+        $metadataManifest.name_export_status | Should Be 'generated'
+        $metadataManifest.validation_export_status | Should Be 'generated'
+        $metadataManifest.conditional_format_export_status | Should Be 'generated'
+        @($metadataWorkbook.named_ranges).Count | Should BeGreaterThan 2
+        @($metadataWorkbook.data_validations).Count | Should Be 1
+        @($metadataWorkbook.conditional_formats).Count | Should Be 1
+
+        $namedRange = $metadataWorkbook.named_ranges | Where-Object { $_.name -eq 'WorkbookInput' } | Select-Object -First 1
+        $namedRange.scope_type | Should Be 'workbook'
+        $namedRange.target_sheet | Should Be 'Grid'
+        $namedRange.target_range | Should Be 'B1'
+
+        $lookupName = $metadataWorkbook.named_ranges | Where-Object { $_.name -eq 'LookupOnlyName' } | Select-Object -First 1
+        $lookupName.target_sheet | Should Be 'Lookup'
+
+        $validation = $metadataWorkbook.data_validations | Select-Object -First 1
+        $validation.sheet | Should Be 'Grid'
+        $validation.type | Should Be 'list'
+        $validation.sqref | Should Be 'B:B'
+        $validation.formula1 | Should Be '"Yes,No"'
+        $validation.show_drop_down | Should Be $true
+
+        $conditionalFormat = $metadataWorkbook.conditional_formats | Select-Object -First 1
+        $conditionalFormat.sheet | Should Be 'Grid'
+        $conditionalFormat.type | Should Be 'cellIs'
+        $conditionalFormat.operator | Should Be 'greaterThan'
+        $conditionalFormat.sqref | Should Be '3:3'
+        @($conditionalFormat.formulas)[0] | Should Be '15'
+    }
+
+    It 'includes optional metadata in llm_package chunks when requested' {
+        $workspace = New-TestWorkspace -Name 'metadata-pack'
+        $bookPath = Join-Path $workspace 'metadata.xlsx'
+        $outputDir = Join-Path $workspace 'output'
+        $jsonlPath = Join-Path $workspace 'metadata.jsonl'
+
+        New-MiniWorkbook -Path $bookPath -IncludeMetadata
+        Set-MetadataSqrefVariants -Path $bookPath
+        & $extractScript -ExcelPath $bookPath -OutputDir $outputDir -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats
+        & $packScript -WorkbookJsonPath (Join-Path $outputDir 'workbook.json') -OutputPath $jsonlPath -ChunkBy sheet -MaxCells 20 -IncludeNamedRanges -IncludeDataValidations -IncludeConditionalFormats
+
+        $chunk = @(Get-Content -LiteralPath $jsonlPath | ForEach-Object { $_ | ConvertFrom-Json } | Where-Object { $_.sheet_name -eq 'Grid' }) | Select-Object -First 1
+
+        $chunk.includes_named_ranges | Should Be $true
+        $chunk.includes_data_validations | Should Be $true
+        $chunk.includes_conditional_formats | Should Be $true
+        @($chunk.payload.metadata.named_ranges).Count | Should BeGreaterThan 0
+        @($chunk.payload.metadata.data_validations).Count | Should Be 1
+        @($chunk.payload.metadata.conditional_formats).Count | Should Be 1
+        $chunk.payload.metadata.data_validations[0].sqref | Should Be 'B:B'
+        $chunk.payload.metadata.conditional_formats[0].sqref | Should Be '3:3'
+    }
+
+    It 'drops workbook-scoped names that only target excluded sheets' {
+        $workspace = New-TestWorkspace -Name 'metadata-sheet-filter'
+        $bookPath = Join-Path $workspace 'metadata.xlsx'
+        $outputDir = Join-Path $workspace 'output'
+
+        New-MiniWorkbook -Path $bookPath -IncludeMetadata
+        & $extractScript -ExcelPath $bookPath -OutputDir $outputDir -Sheets @('Grid') -CollectNamedRanges
+
+        $workbookJson = Get-Content -LiteralPath (Join-Path $outputDir 'workbook.json') -Raw | ConvertFrom-Json
+        $names = @($workbookJson.named_ranges)
+
+        (@($names | Where-Object { $_.name -eq 'LookupOnlyName' })).Count | Should Be 0
+        (@($names | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.target_sheet) -and $_.target_sheet -ne 'Grid' })).Count | Should Be 0
+    }
+
     It 'prints human-friendly summaries for extract, pack, and verify commands' {
         $workspace = New-TestWorkspace -Name 'console-summaries'
         $samplesDir = Join-Path $workspace 'samples'
