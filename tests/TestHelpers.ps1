@@ -129,6 +129,177 @@ function New-MiniWorkbook {
     }
 }
 
+function Test-VbaProjectAccess {
+    $excel = $null
+    $workbook = $null
+    try {
+        $excel = New-ExcelApplication
+        $workbook = $excel.Workbooks.Add()
+        $null = $workbook.VBProject.VBComponents.Count
+        return $true
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($null -ne $workbook) {
+            try {
+                $workbook.Close($false)
+            }
+            catch {
+            }
+            Release-ComReference $workbook
+        }
+        if ($null -ne $excel) {
+            try {
+                $excel.Quit()
+            }
+            catch {
+            }
+            Release-ComReference $excel
+        }
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+    }
+}
+
+function New-VbaWorkbook {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [switch]$IncludeUserForm
+    )
+
+    if (-not (Test-VbaProjectAccess)) {
+        throw 'VBA プロジェクトにアクセスできないため、VBA 付き fixture を作成できません。'
+    }
+
+    $excel = $null
+    $workbook = $null
+    $sheet = $null
+    $vbProject = $null
+    $vbComponents = $null
+    $stdComponent = $null
+    $classComponent = $null
+    $documentComponent = $null
+    $userFormComponent = $null
+    $userFormCreated = $false
+
+    try {
+        $excel = New-ExcelApplication
+        $workbook = $excel.Workbooks.Add()
+        $sheet = $workbook.Worksheets.Item(1)
+        $sheet.Name = 'MacroSheet'
+        $sheet.Range('A1').Value2 = 'Macro workbook'
+
+        $directory = Split-Path -Path $Path -Parent
+        Ensure-Directory -Path $directory
+        $workbook.SaveAs($Path, 52)
+
+        $vbProject = $workbook.VBProject
+        $vbComponents = $vbProject.VBComponents
+
+        $stdComponent = $vbComponents.Add(1)
+        $stdComponent.Name = 'MacroModule'
+        $stdComponent.CodeModule.AddFromString(@'
+Option Explicit
+
+Public Function DoubleIt(ByVal value As Long) As Long
+    DoubleIt = value * 2
+End Function
+'@)
+
+        $classComponent = $vbComponents.Add(2)
+        $classComponent.Name = 'EngineClass'
+        $classComponent.CodeModule.AddFromString(@'
+Option Explicit
+
+Public Function Describe() As String
+    Describe = "Engine"
+End Function
+'@)
+
+        $documentComponent = $vbComponents.Item($sheet.CodeName)
+        $existingDocumentLines = [int]$documentComponent.CodeModule.CountOfLines
+        if ($existingDocumentLines -gt 0) {
+            $documentComponent.CodeModule.DeleteLines(1, $existingDocumentLines)
+        }
+        $documentComponent.CodeModule.AddFromString(@'
+Option Explicit
+
+Private Sub Worksheet_Activate()
+    Range("A2").Value = "Activated"
+End Sub
+'@)
+
+        if ($IncludeUserForm) {
+            try {
+                $userFormComponent = $vbComponents.Add(3)
+                $userFormComponent.Name = 'ReviewForm'
+                $userFormComponent.CodeModule.AddFromString(@'
+Option Explicit
+
+Public Sub ShowTitle()
+    Me.Caption = "Review"
+End Sub
+'@)
+                $userFormCreated = $true
+            }
+            catch {
+                $userFormCreated = $false
+            }
+        }
+
+        $workbook.Save()
+
+        return [pscustomobject]@{
+            path = $Path
+            user_form_created = $userFormCreated
+        }
+    }
+    finally {
+        if ($null -ne $userFormComponent) {
+            Release-ComReference $userFormComponent
+        }
+        if ($null -ne $documentComponent) {
+            Release-ComReference $documentComponent
+        }
+        if ($null -ne $classComponent) {
+            Release-ComReference $classComponent
+        }
+        if ($null -ne $stdComponent) {
+            Release-ComReference $stdComponent
+        }
+        if ($null -ne $vbComponents) {
+            Release-ComReference $vbComponents
+        }
+        if ($null -ne $vbProject) {
+            Release-ComReference $vbProject
+        }
+        if ($null -ne $sheet) {
+            Release-ComReference $sheet
+        }
+        if ($null -ne $workbook) {
+            try {
+                $workbook.Close($false)
+            }
+            catch {
+            }
+            Release-ComReference $workbook
+        }
+        if ($null -ne $excel) {
+            try {
+                $excel.Quit()
+            }
+            catch {
+            }
+            Release-ComReference $excel
+        }
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+    }
+}
+
 function Set-MetadataSqrefVariants {
     param(
         [Parameter(Mandatory)]

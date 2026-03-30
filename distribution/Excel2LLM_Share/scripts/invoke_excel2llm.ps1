@@ -32,6 +32,15 @@ function Invoke-Excel2LLMTarget {
     exit 0
 }
 
+function Test-RequiresPositionalPath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$CommandName
+    )
+
+    return @('-runall', '-extract', '-verify', '-preflight', '-macroextract', '-pack', '-rebuild') -contains $CommandName.ToLowerInvariant()
+}
+
 $projectRoot = Get-ProjectRoot
 $noPauseFlagPath = [string]$env:EXCEL2LLM_NO_PAUSE_FLAG
 $noPauseRequested = $false
@@ -58,6 +67,11 @@ if ($effectiveArguments.Count -eq 0) {
 $commandName = [string]$effectiveArguments[0]
 $remainingArguments = @($effectiveArguments | Select-Object -Skip 1)
 
+if ((Test-RequiresPositionalPath -CommandName $commandName) -and $remainingArguments.Count -eq 0) {
+    & (Join-Path $PSScriptRoot 'show_usage.ps1') -CommandName Excel2LLM
+    exit 1
+}
+
 switch -Regex ($commandName.ToLowerInvariant()) {
     '^-h$|^--help$|^/\?$' {
         & (Join-Path $PSScriptRoot 'show_usage.ps1') -CommandName Excel2LLM
@@ -74,6 +88,9 @@ switch -Regex ($commandName.ToLowerInvariant()) {
     }
     '^-preflight$' {
         Invoke-Excel2LLMTarget -ScriptPath (Join-Path $projectRoot 'scripts\preflight_excel.ps1') -ScriptArguments $remainingArguments
+    }
+    '^-macroextract$' {
+        Invoke-Excel2LLMTarget -ScriptPath (Join-Path $projectRoot 'scripts\macro_extract.ps1') -ScriptArguments $remainingArguments
     }
     '^-pack$' {
         Invoke-Excel2LLMTarget -ScriptPath (Join-Path $projectRoot 'scripts\pack_for_llm.ps1') -ScriptArguments $remainingArguments

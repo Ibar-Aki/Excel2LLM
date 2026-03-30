@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-28 00:20 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-29
+- 更新日: 2026-03-30
 
 ## この文書だけ読めば使えます
 
@@ -42,10 +42,11 @@
 | 1 | Excel を処理する | まず普通に使いたい |
 | 2 | Excel を処理して照合もする | 重要な資料なので確認もしたい |
 | 3 | 見た目情報や追加ルールも含めて抽出する | 色や罫線に加えて、名前定義、入力規則、条件付き書式も見たい |
-| 5 | 抽出結果と元 Excel を照合する | すでに `workbook.json` があり、あとから確認したい |
-| 7 | 抽出結果から Excel を復元する | `workbook.json` から Excel を作り直したい |
-| 8 | 最新結果から指示文セットを作る | LLM に貼り付ける文を作りたい |
-| 9 | 動作確認をする | 最初の確認や、不具合切り分けをしたい |
+| 5 | VBA を取り出して LLM 用ファイルも作る | `.xlsm` / `.xlam` のマクロをレビューしたい |
+| 6 | 抽出結果と元 Excel を照合する | すでに `workbook.json` があり、あとから確認したい |
+| 8 | 抽出結果から Excel を復元する | `workbook.json` から Excel を作り直したい |
+| 9 | 最新結果から指示文セットを作る | LLM に貼り付ける文を作りたい |
+| 10 | 動作確認をする | 最初の確認や、不具合切り分けをしたい |
 
 ## 基本の使い方
 
@@ -79,6 +80,12 @@ Excel2LLM.bat -Extract "C:\Data\book.xlsx" -CollectStyles
 
 ```bat
 Excel2LLM.bat -Extract "C:\Data\book.xlsx" -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats
+```
+
+VBA ソースを取り出して LLM に渡したい場合:
+
+```bat
+Excel2LLM.bat -MacroExtract "C:\Data\book.xlsm"
 ```
 
 ## 実行すると何が作られるか
@@ -116,6 +123,10 @@ output\estimate_20260328-143500
 | `llm_package.jsonl` | `Excel2LLM.bat` の通常処理 / `-Pack` | LLM に渡しやすい分割済みデータ |
 | `verify_report.json` | `Excel2LLM.bat "..." -Verify` または `Excel2LLM.bat -Verify ...` | Excel との突き合わせ結果 |
 | `prompt_bundle\` | `-PromptBundle` | LLM に貼り付ける指示文セット |
+| `vba\macro_manifest.json` | `-MacroExtract` | VBA 抽出結果の要約 |
+| `vba\modules\` | `-MacroExtract` | `.bas/.cls/.frm` などの可読ソース |
+| `vba\vba_llm_package.jsonl` | `-MacroExtract` | VBA を LLM に渡しやすい JSONL |
+| `vba\vba_prompt.txt` | `-MacroExtract` | VBA レビュー用の完成文 |
 | `rebuilt\` | `Excel2LLM.bat -Rebuild ...` | `workbook.json` から作り直した Excel |
 
 ## 最初に見るべきもの
@@ -136,6 +147,7 @@ output\estimate_20260328-143500
 | `JSONL` | 1 行に 1 件ずつデータが入る形式 |
 | `チャンク` | LLM に一度に渡すデータのかたまり |
 | `prompt bundle` | LLM に貼り付ける指示文セット |
+| `VBA 抽出` | `.xlsm/.xlam` からマクロの可読ソースを取り出すこと |
 | `verify` | 抽出結果と Excel を突き合わせる確認 |
 | `名前定義` | 数式の中で意味のある名前を付けた参照 |
 | `入力規則` | セルに入力してよい値のルール |
@@ -150,6 +162,7 @@ output\estimate_20260328-143500
 | 危険な Excel か先に確認したい | `Excel2LLM.bat -Preflight "..."` |
 | 見た目情報も含めて抽出したい | `Excel2LLM.bat -Extract "..." -CollectStyles` |
 | 名前定義、入力規則、条件付き書式も見たい | `Excel2LLM.bat -Extract "..." -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats` |
+| `.xlsm` のマクロをレビューしたい | `Excel2LLM.bat -MacroExtract "..."` |
 | LLM に貼り付ける文を作りたい | `Excel2LLM.bat -PromptBundle` |
 | `workbook.json` から Excel を作り直したい | `Excel2LLM.bat -Rebuild "...\workbook.json"` |
 
@@ -161,6 +174,7 @@ output\estimate_20260328-143500
 | 処理して照合もする | `Excel2LLM.bat "C:\Data\book.xlsx" -Verify` |
 | 見た目情報も含めて抽出する | `Excel2LLM.bat -Extract "C:\Data\book.xlsx" -CollectStyles` |
 | 名前定義、入力規則、条件付き書式も含めて抽出する | `Excel2LLM.bat -Extract "C:\Data\book.xlsx" -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats` |
+| VBA を取り出す | `Excel2LLM.bat -MacroExtract "C:\Data\book.xlsm"` |
 | 事前チェックだけ行う | `Excel2LLM.bat -Preflight "C:\Data\book.xlsx"` |
 | 抽出結果を照合する | `Excel2LLM.bat -Verify "C:\Data\book.xlsx" -WorkbookJsonPath "output\run\workbook.json"` |
 | 抽出結果を分割し直す | `Excel2LLM.bat -Pack "output\run\workbook.json" -ChunkBy range -MaxCells 300` |
@@ -204,6 +218,8 @@ LLM 向けの指示文例は `docs\reference\LLM_PROMPT_FORMATS.md` にありま
 - `Excel2LLM.bat` は、抽出前に自動で事前チェックを行います
 - 重すぎる Excel や壊れている疑いがある Excel は、Excel を開く前に停止します
 - `Excel2LLM.bat -PromptBundle` は、直前の実行結果フォルダを自動で使います
+- `Excel2LLM.bat -MacroExtract` は `.xlsm/.xlam` 専用です
+- VBA の可読ソース抽出には、Excel の VBA プロジェクトアクセス許可が必要な場合があります
 - `-CollectNamedRanges`, `-CollectDataValidations`, `-CollectConditionalFormats` は、必要なときだけ付けてください
 - `Excel2LLM.bat` は処理後に画面を閉じません。結果確認後にキーを押して閉じます
 - 詳細機能を直接使いたい場合だけ `tools\advanced\` の `bat` も利用できます

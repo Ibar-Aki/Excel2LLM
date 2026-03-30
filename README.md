@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-10 00:55 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-29
+- 更新日: 2026-03-30
 
 あなたの Excel ファイルを、ChatGPT などの LLM に渡しやすい形式へ変換するツールです。
 Excel を開いて手でコピペしなくても、コマンド 1 つで必要なデータを取り出せます。
@@ -40,6 +40,7 @@ Excel2LLM.bat -PromptBundle -Scenario general
 | ドラッグアンドドロップ | 一番簡単な使い方です |
 | `-Verify` | 重要な資料の確認を追加したいときに使います |
 | `-PromptBundle` | LLM に貼り付ける指示文セットを作るときに使います |
+| `-MacroExtract` | `.xlsm/.xlam` の VBA ソースを取り出して LLM 用ファイルを作るときに使います |
 
 主に使う出力:
 
@@ -66,6 +67,7 @@ Excel2LLM.bat "C:\path\to\book.xlsx"
 Excel2LLM.bat "C:\path\to\book.xlsx" -Verify
 Excel2LLM.bat -Extract "C:\path\to\book.xlsx" -CollectStyles
 Excel2LLM.bat -Extract "C:\path\to\book.xlsx" -CollectNamedRanges -CollectDataValidations -CollectConditionalFormats
+Excel2LLM.bat -MacroExtract "C:\path\to\book.xlsm"
 Excel2LLM.bat -Verify "C:\path\to\book.xlsx" -WorkbookJsonPath "output\run\workbook.json"
 Excel2LLM.bat -Rebuild "output\run\workbook.json" -StylesJsonPath "output\run\styles.json"
 Excel2LLM.bat -Pack "output\run\workbook.json" -ChunkBy range -MaxCells 300
@@ -81,6 +83,7 @@ Excel2LLM.bat -SelfTest
 - 複数シートのセル値、表示値、数式、結合セルを `workbook.json` に保存
 - 色や罫線などの補助情報を `styles.json` に分離保存
 - 必要なときだけ、名前定義・入力規則・条件付き書式も `workbook.json` に追加保存
+- `.xlsm/.xlam` の VBA ソースを `vba\` 配下へ抽出し、LLM 用 JSONL を生成
 - LLM 向けの `llm_package.jsonl` を生成
 - `prompt_*.txt` の prompt bundle を生成
 - 抽出結果と Excel 再計算結果の差分を `verify_report.json` で確認
@@ -95,7 +98,7 @@ Excel2LLM.bat -SelfTest
 
 ## 補足
 
-- 対応形式は `.xlsx` と `.xlsm`
+- 通常の表抽出は `.xlsx` と `.xlsm`、VBA 抽出は `.xlsm` と `.xlam` に対応
 - 色や罫線は補助情報であり、主処理の成功条件ではありません
 - 逆生成の出力は常に `.xlsx` です
 - ルート直下の入口は `Excel2LLM.bat` だけです

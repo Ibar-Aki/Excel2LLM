@@ -13,6 +13,7 @@ $runAllScript = Join-Path $ProjectRoot 'scripts\run_all.ps1'
 $extractScript = Join-Path $ProjectRoot 'scripts\extract_excel.ps1'
 $packScript = Join-Path $ProjectRoot 'scripts\pack_for_llm.ps1'
 $preflightScript = Join-Path $ProjectRoot 'scripts\preflight_excel.ps1'
+$macroExtractScript = Join-Path $ProjectRoot 'scripts\macro_extract.ps1'
 $verifyScript = Join-Path $ProjectRoot 'scripts\excel_verify.ps1'
 $rebuildScript = Join-Path $ProjectRoot 'scripts\rebuild_excel.ps1'
 $promptBundleScript = Join-Path $ProjectRoot 'scripts\run_prompt_bundle.ps1'
@@ -72,12 +73,13 @@ Write-Host '1. Excel を処理する'
 Write-Host '2. Excel を処理して照合もする'
 Write-Host '3. 見た目情報や追加ルールも含めて抽出する'
 Write-Host '4. 事前チェックだけ行う'
-Write-Host '5. 抽出結果と元 Excel を照合する'
-Write-Host '6. 抽出結果を分割し直す'
-Write-Host '7. 抽出結果から Excel を復元する'
-Write-Host '8. 最新結果から指示文セットを作る'
-Write-Host '9. 動作確認をする'
-Write-Host '10. 詳細機能フォルダを開く'
+Write-Host '5. VBA を取り出して LLM 用ファイルも作る'
+Write-Host '6. 抽出結果と元 Excel を照合する'
+Write-Host '7. 抽出結果を分割し直す'
+Write-Host '8. 抽出結果から Excel を復元する'
+Write-Host '9. 最新結果から指示文セットを作る'
+Write-Host '10. 動作確認をする'
+Write-Host '11. 詳細機能フォルダを開く'
 Write-Host '0. 終了する'
 
 $choice = Read-Host '番号を入力してください'
@@ -105,6 +107,11 @@ try {
             exit 0
         }
         '5' {
+            $excelPath = Read-RequiredInput -Prompt 'VBA を取り出したい .xlsm / .xlam のパスを入力してください'
+            & $macroExtractScript -WorkbookPath $excelPath
+            exit 0
+        }
+        '6' {
             $excelPath = Read-RequiredInput -Prompt '元の Excel ファイルのパスを入力してください'
             $defaultWorkbookJsonPath = Get-DefaultWorkbookJsonPath
             $workbookJsonPath = Read-OptionalInput -Prompt ("workbook.json のパスを入力してください（Enter で最新結果を使用: {0}）" -f $defaultWorkbookJsonPath)
@@ -115,7 +122,7 @@ try {
             & $verifyScript -ExcelPath $excelPath -WorkbookJsonPath $workbookJsonPath
             exit 0
         }
-        '6' {
+        '7' {
             $defaultWorkbookJsonPath = Get-DefaultWorkbookJsonPath
             $workbookJsonPath = Read-OptionalInput -Prompt ("workbook.json のパスを入力してください（Enter で最新結果を使用: {0}）" -f $defaultWorkbookJsonPath)
             if (-not $workbookJsonPath) {
@@ -125,7 +132,7 @@ try {
             & $packScript -WorkbookJsonPath $workbookJsonPath
             exit 0
         }
-        '7' {
+        '8' {
             $defaultWorkbookJsonPath = Get-DefaultWorkbookJsonPath
             $workbookJsonPath = Read-OptionalInput -Prompt ("workbook.json のパスを入力してください（Enter で最新結果を使用: {0}）" -f $defaultWorkbookJsonPath)
             if (-not $workbookJsonPath) {
@@ -152,7 +159,7 @@ try {
             }
             exit 0
         }
-        '8' {
+        '9' {
             Write-Host 'シナリオを選んでください: 1=general  2=mechanical  3=accounting'
             $scenarioChoice = Read-Host '番号を入力してください（Enter で 1）'
             $scenario = switch ($scenarioChoice) {
@@ -164,11 +171,11 @@ try {
             & $promptBundleScript -Scenario $scenario
             exit 0
         }
-        '9' {
+        '10' {
             & $selfTestScript
             exit 0
         }
-        '10' {
+        '11' {
             Start-Process explorer.exe $advancedDir | Out-Null
             exit 0
         }
@@ -176,7 +183,7 @@ try {
             exit 0
         }
         default {
-            Write-Host '0 から 10 の番号を入力してください。'
+            Write-Host '0 から 11 の番号を入力してください。'
             exit 1
         }
     }

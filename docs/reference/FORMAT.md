@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-10 00:55 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-29
+- 更新日: 2026-03-30
 
 ## preflight_report.json
 
@@ -168,6 +168,51 @@
 - `named_ranges`: `-IncludeNamedRanges` 指定時のみ
 - `data_validations`: `-IncludeDataValidations` 指定時のみ
 - `conditional_formats`: `-IncludeConditionalFormats` 指定時のみ
+
+## macro_manifest.json
+
+`Excel2LLM.bat -MacroExtract "...\book.xlsm"` の結果です。
+
+- `status`: `success | warning`
+- `workbook_name`
+- `workbook_path`: `-RedactPaths` 指定時はファイル名
+- `output_directory`: `-RedactPaths` 指定時は末尾ディレクトリ名
+- `extension`: `.xlsm` または `.xlam`
+- `has_vba`: VBA ソースまたは raw VBA プロジェクトが見つかったか
+- `raw_export_status`: `generated | missing | failed`
+- `raw_project_path`: `vbaProject.bin` を保存した相対パス
+- `source_export_status`: `generated | no_vba | failed`
+- `access_error`: VBA プロジェクトアクセス失敗時のメッセージ
+- `component_count`
+- `llm_package_status`: `generated | skipped`
+- `llm_package_path`
+- `prompt_status`
+- `prompt_path`
+- `warnings`
+- `components[]`
+
+### components[]
+
+- `component_name`
+- `component_type`: `standard_module | class_module | user_form | document_module | unknown`
+- `component_scope`: `standard | class | form | document | unknown`
+- `type_code`
+- `source_path`
+- `additional_files`: `UserForm.frx` などの補助ファイル
+- `line_count`
+- `export_status`: `generated | fallback | skipped`
+
+## vba_llm_package.jsonl
+
+`vba_llm_package.jsonl` は VBA 専用の LLM 入力です。1 行 1 コンポーネントです。
+
+- `component_name`
+- `component_type`
+- `component_scope`
+- `source_path`
+- `code_text`
+- `line_count`
+- `workbook_name`
 
 ## manifest.json
 

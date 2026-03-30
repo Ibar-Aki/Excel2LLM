@@ -2,6 +2,7 @@ $projectRoot = Split-Path -Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 
 $extractScript = Join-Path $projectRoot 'scripts\extract_excel.ps1'
+$macroExtractScript = Join-Path $projectRoot 'scripts\macro_extract.ps1'
 $preflightScript = Join-Path $projectRoot 'scripts\preflight_excel.ps1'
 $packScript = Join-Path $projectRoot 'scripts\pack_for_llm.ps1'
 $verifyScript = Join-Path $projectRoot 'scripts\excel_verify.ps1'
@@ -13,6 +14,7 @@ $acceptanceScript = Join-Path $projectRoot 'scripts\run_domain_acceptance.ps1'
 $sharePackageScript = Join-Path $projectRoot 'scripts\build_share_package.ps1'
 $excel2llmBat = Join-Path $projectRoot 'Excel2LLM.bat'
 $runExtractBat = Join-Path $projectRoot 'tools\advanced\run_extract.bat'
+$runMacroExtractBat = Join-Path $projectRoot 'tools\advanced\run_macro_extract.bat'
 $runPackBat = Join-Path $projectRoot 'tools\advanced\run_pack.bat'
 $runPreflightBat = Join-Path $projectRoot 'tools\advanced\run_preflight.bat'
 $runVerifyBat = Join-Path $projectRoot 'tools\advanced\run_verify.bat'
@@ -51,6 +53,7 @@ Describe 'Excel2LLM integration tests' {
         $batCases = @(
             @{ Path = $excel2llmBat; Usage = '使い方: Excel2LLM.bat'; SkipNoArg = $true }
             @{ Path = $runExtractBat; Usage = '使い方: tools\advanced\run_extract.bat' }
+            @{ Path = $runMacroExtractBat; Usage = '使い方: tools\advanced\run_macro_extract.bat' }
             @{ Path = $runPackBat; Usage = '使い方: tools\advanced\run_pack.bat' }
             @{ Path = $runPreflightBat; Usage = '使い方: tools\advanced\run_preflight.bat' }
             @{ Path = $runVerifyBat; Usage = '使い方: tools\advanced\run_verify.bat' }
@@ -294,6 +297,53 @@ Describe 'Excel2LLM integration tests' {
         $chunk.payload.metadata.conditional_formats[0].sqref | Should Be '3:3'
     }
 
+    It 'rejects macro extraction for non-macro workbook extensions' {
+        $workspace = New-TestWorkspace -Name 'macro-extract-invalid-extension'
+        $bookPath = Join-Path $workspace 'plain.xlsx'
+        $outputDir = Join-Path $workspace 'output'
+
+        New-MiniWorkbook -Path $bookPath
+        $output = Invoke-Excel2LLMRoot -Arguments @('-MacroExtract', $bookPath, '-OutputDir', $outputDir)
+
+        $LASTEXITCODE | Should Not Be 0
+        $output | Should Match '\.xlsm または \.xlam'
+        (Test-Path -LiteralPath (Join-Path $outputDir 'vba\macro_manifest.json')) | Should Be $false
+    }
+
+    It 'extracts VBA source and creates LLM artifacts when VBProject access is available' {
+        if (-not (Test-VbaProjectAccess)) {
+            return
+        }
+
+        $workspace = New-TestWorkspace -Name 'macro-extract-success'
+        $bookPath = Join-Path $workspace 'macro-source.xlsm'
+        $outputDir = Join-Path $workspace 'output'
+
+        $fixture = New-VbaWorkbook -Path $bookPath -IncludeUserForm
+        & $macroExtractScript -WorkbookPath $bookPath -OutputDir $outputDir
+
+        $manifest = Get-Content -LiteralPath (Join-Path $outputDir 'vba\macro_manifest.json') -Raw | ConvertFrom-Json
+        $jsonlRecords = @(Get-Content -LiteralPath (Join-Path $outputDir 'vba\vba_llm_package.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+        $promptText = Get-Content -LiteralPath (Join-Path $outputDir 'vba\vba_prompt.txt') -Raw
+
+        $manifest.status | Should Be 'success'
+        $manifest.has_vba | Should Be $true
+        $manifest.raw_export_status | Should Be 'generated'
+        $manifest.source_export_status | Should Be 'generated'
+        $manifest.llm_package_status | Should Be 'generated'
+        (@($manifest.components | Where-Object { $_.component_name -eq 'MacroModule' })).Count | Should Be 1
+        (@($manifest.components | Where-Object { $_.component_name -eq 'EngineClass' })).Count | Should Be 1
+        (@($manifest.components | Where-Object { $_.component_scope -eq 'document' })).Count | Should BeGreaterThan 0
+        (@($jsonlRecords | Where-Object { $_.component_name -eq 'MacroModule' })).Count | Should Be 1
+        (@($jsonlRecords | Where-Object { $_.component_name -eq 'EngineClass' })).Count | Should Be 1
+        $promptText | Should Match 'VBA レビュー支援アシスタント'
+        (Test-Path -LiteralPath (Join-Path $outputDir 'vba\raw\vbaProject.bin')) | Should Be $true
+
+        if ($fixture.user_form_created) {
+            (Test-Path -LiteralPath (Join-Path $outputDir 'vba\modules\ReviewForm.frm')) | Should Be $true
+        }
+    }
+
     It 'drops workbook-scoped names that only target excluded sheets' {
         $workspace = New-TestWorkspace -Name 'metadata-sheet-filter'
         $bookPath = Join-Path $workspace 'metadata.xlsx'
@@ -476,12 +526,14 @@ Describe 'Excel2LLM integration tests' {
         $output | Should Match '3\. まだダメなら Excel2LLM\.bat -SelfTest'
     }
 
-    It 'supports direct root modes for preflight, extract, verify, pack, and rebuild' {
+    It 'supports direct root modes for preflight, extract, verify, pack, rebuild, and macro extraction' {
         $workspace = New-TestWorkspace -Name 'root-direct-modes'
         $bookPath = Join-Path $workspace 'styles.xlsx'
         $extractDir = Join-Path $workspace 'extract'
         $jsonlPath = Join-Path $workspace 'packed.jsonl'
         $rebuiltPath = Join-Path $workspace 'rebuilt\styles_rebuilt.xlsx'
+        $macroOutputDir = Join-Path $workspace 'macro-output'
+        $macroBookPath = Join-Path $workspace 'macro-source.xlsm'
 
         New-MiniWorkbook -Path $bookPath -IncludeStyles
 
@@ -502,6 +554,13 @@ Describe 'Excel2LLM integration tests' {
         $verifyOutput | Should Match '=== 検証結果 ==='
         $packOutput | Should Match '=== パッキング結果 ==='
         $rebuildOutput | Should Match 'rebuild_report\.json'
+
+        if (Test-VbaProjectAccess) {
+            New-VbaWorkbook -Path $macroBookPath | Out-Null
+            $macroOutput = Invoke-Excel2LLMRoot -Arguments @('-MacroExtract', $macroBookPath, '-OutputDir', $macroOutputDir)
+            (Test-Path -LiteralPath (Join-Path $macroOutputDir 'vba\macro_manifest.json')) | Should Be $true
+            $macroOutput | Should Match '=== VBA 抽出結果 ==='
+        }
     }
 
     It 'supports path redaction and explicit macro opt-in for extract and verify flows' {
@@ -854,7 +913,9 @@ Describe 'Excel2LLM integration tests' {
         (Test-Path -LiteralPath (Join-Path $outsideDir 'README.md')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'GETTING_STARTED.md')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'Excel2LLM.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'docs\reference\EXTRACTION_COVERAGE.md')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'tools\user\run_all.bat')) | Should Be $true
+        (Test-Path -LiteralPath (Join-Path $outsideDir 'tools\advanced\run_macro_extract.bat')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'tools\advanced\run_preflight.bat')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'tools\user\run_prompt_bundle.bat')) | Should Be $true
         (Test-Path -LiteralPath (Join-Path $outsideDir 'docs\guides\SHARE_PACKAGE.md')) | Should Be $false

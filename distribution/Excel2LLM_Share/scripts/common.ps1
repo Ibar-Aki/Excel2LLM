@@ -397,6 +397,55 @@ function Get-ZipArchiveEntryText {
     }
 }
 
+function Export-ZipArchiveEntryToFile {
+    param(
+        [Parameter(Mandatory)]
+        $Archive,
+        [Parameter(Mandatory)]
+        [string]$EntryPath,
+        [Parameter(Mandatory)]
+        [string]$DestinationPath
+    )
+
+    $entry = $Archive.GetEntry($EntryPath)
+    if ($null -eq $entry) {
+        return $false
+    }
+
+    Ensure-Directory -Path (Split-Path -Path $DestinationPath -Parent)
+
+    $sourceStream = $null
+    $destinationStream = $null
+    try {
+        $sourceStream = $entry.Open()
+        $destinationStream = [System.IO.File]::Create($DestinationPath)
+        $sourceStream.CopyTo($destinationStream)
+        return $true
+    }
+    finally {
+        if ($null -ne $destinationStream) {
+            $destinationStream.Dispose()
+        }
+        if ($null -ne $sourceStream) {
+            $sourceStream.Dispose()
+        }
+    }
+}
+
+function Get-RelativePathFromDirectory {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [Parameter(Mandatory)]
+        [string]$BaseDirectory
+    )
+
+    $resolvedPath = Get-NormalizedFullPath -Path $Path
+    $resolvedBaseDirectory = Get-NormalizedFullPath -Path $BaseDirectory
+    $relativePath = [System.IO.Path]::GetRelativePath($resolvedBaseDirectory, $resolvedPath)
+    return $relativePath.Replace('/', '\')
+}
+
 function Resolve-OpenXmlTargetPath {
     param(
         [Parameter(Mandatory)]

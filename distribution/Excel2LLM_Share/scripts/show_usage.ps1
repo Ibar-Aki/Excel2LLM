@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('Excel2LLM', 'run_all', 'run_extract', 'run_pack', 'run_preflight', 'run_prompt_bundle', 'run_rebuild', 'run_verify')]
+    [ValidateSet('Excel2LLM', 'run_all', 'run_extract', 'run_macro_extract', 'run_pack', 'run_preflight', 'run_prompt_bundle', 'run_rebuild', 'run_verify')]
     [string]$CommandName
 )
 
@@ -11,6 +11,7 @@ $usageMap = @{
         '       Excel2LLM.bat -Extract "C:\path\to\book.xlsx" [extract のオプション]'
         '       Excel2LLM.bat -Verify "C:\path\to\book.xlsx" [verify のオプション]'
         '       Excel2LLM.bat -Preflight "C:\path\to\book.xlsx" [preflight のオプション]'
+        '       Excel2LLM.bat -MacroExtract "C:\path\to\book.xlsm"'
         '       Excel2LLM.bat -Pack "output\<実行結果フォルダ>\workbook.json" [pack のオプション]'
         '       Excel2LLM.bat -Rebuild "output\<実行結果フォルダ>\workbook.json" [rebuild のオプション]'
         '       Excel2LLM.bat -PromptBundle [オプション]'
@@ -20,6 +21,7 @@ $usageMap = @{
         '  - Excel ファイルをドラッグアンドドロップすると、そのまま一括実行します'
         '  - 引数なしで開くと、verify、復元、style 抽出も選べるメニューを表示します'
         '  - -CollectStyles や名前定義 / 入力規則 / 条件付き書式の抽出もここから呼べます'
+        '  - -MacroExtract で VBA ソース抽出と LLM 用ファイル作成を行えます'
         '  - 実行後は画面を閉じず、結果を確認してからキーを押して閉じます'
         '  - 自動実行で停止させたくない場合は -NoPause を付けます'
         ''
@@ -58,6 +60,19 @@ $usageMap = @{
         '補足:'
         '  - 抽出の前に必須の preflight（事前チェック）が走ります'
         '  - 重すぎる Excel や破損疑いのある Excel は Excel 起動前に停止します'
+        ''
+        '詳細: GETTING_STARTED.md'
+    )
+    run_macro_extract = @(
+        '使い方: tools\advanced\run_macro_extract.bat "C:\path\to\book.xlsm" [オプション]'
+        ''
+        '主なオプション:'
+        '  -OutputDir "C:\path\to\output"  出力先フォルダを変更します'
+        '  -RedactPaths           出力に絶対パスを残しにくくします'
+        ''
+        '補足:'
+        '  - VBA 本体の可読ソースを抽出し、LLM 用の JSONL も作成します'
+        '  - Excel の VBA プロジェクトアクセスが拒否される環境では raw 保存のみになる場合があります'
         ''
         '詳細: GETTING_STARTED.md'
     )

@@ -2,7 +2,7 @@
 
 - 作成日: 2026-03-12 00:50 JST
 - 作成者: Codex (GPT-5)
-- 更新日: 2026-03-29
+- 更新日: 2026-03-30
 
 ## 最初に読む順番
 
@@ -24,7 +24,7 @@
 
 - `..\GETTING_STARTED.md`
   - `Excel2LLM.bat` を入口にした利用者向け手順
-  - verify、style 抽出、復元、prompt bundle まで 1 本で実行する前提
+  - verify、style 抽出、VBA 抽出、復元、prompt bundle まで 1 本で実行する前提
   - 非 IT 利用者は、まずこれだけ見ればよい
 - `guides/USE_CASES.md`
   - 実務での使い方と活用例
